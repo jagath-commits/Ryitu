@@ -1,0 +1,38 @@
+{
+  "name": "pdf-book-reader-backend",
+  "version": "1.0.0",
+  "description": "Production-ready backend API for mobile PDF Book Reader application",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node test/backend.test.js"
+  },
+  "keywords": [
+    "pdf",
+    "book-reader",
+    "express",
+    "mongoose",
+    "jwt",
+    "flutter"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.10.1",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.1.4"
+  }
+}
