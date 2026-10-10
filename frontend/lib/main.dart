@@ -17,25 +17,14 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-
-  const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-
-  const initSettings = InitializationSettings(android: androidSettings);
-
-  await flutterLocalNotificationsPlugin.initialize(initSettings);
-
+  // Prevent silent blank screen in release APK by capturing framework errors
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    debugPrint('Flutter error: ${details.exceptionAsString()}');
+    debugPrint('Flutter framework error: ${details.exceptionAsString()}');
   };
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -46,10 +35,49 @@ Future<void> main() async {
     ),
   );
 
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString('token');
+  // Safely retrieve cached token
+  String? token;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    token = prefs.getString('token');
+  } catch (e) {
+    debugPrint('SharedPreferences init error: $e');
+  }
 
+  // 🚀 CRITICAL FIX: Run app IMMEDIATELY so UI mounts without waiting for native/permission delays!
   runApp(MyApp(token: token));
+
+  // 🚀 Initialize Firebase & notification services asynchronously in background
+  _initServicesAsync();
+}
+
+Future<void> _initServicesAsync() async {
+  try {
+    await Firebase.initializeApp();
+    debugPrint("Firebase initialized successfully");
+
+    // Local notifications initialization
+    try {
+      const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
+      const initSettings = InitializationSettings(android: androidSettings);
+      await flutterLocalNotificationsPlugin.initialize(initSettings);
+    } catch (e) {
+      debugPrint("Local notifications init skipped: $e");
+    }
+
+    // Notification permission request (safe and non-blocking after UI is rendered)
+    try {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    } catch (e) {
+      debugPrint("FCM requestPermission skipped: $e");
+    }
+  } catch (e) {
+    debugPrint("Firebase init error: $e");
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -69,26 +97,26 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
 
-    FirebaseMessaging.instance.getToken().then((token) {
-      print("FCM TOKEN: $token");
-    });
-    FirebaseMessaging.onMessageOpenedApp.listen((message) async {
-      print("FULL DATA = ${message.data}");
-      final postId = message.data['postId'];
-      print("POST ID = $postId");
+    _setupFirebaseMessaging();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initDeepLinks());
+  }
 
-      if (postId != null) {
-        navigatorKey.currentState?.push(
-          MaterialPageRoute(
-            builder: (_) => NotificationPostPage(postId: postId),
-          ),
-        );
-      }
-    });
+  void _setupFirebaseMessaging() {
+    try {
+      FirebaseMessaging.instance.getToken().then((token) {
+        debugPrint("FCM TOKEN: $token");
+      }).catchError((e) {
+        debugPrint("FCM getToken error: $e");
+      });
+    } catch (e) {
+      debugPrint("FCM token exception: $e");
+    }
 
-    FirebaseMessaging.instance.getInitialMessage().then((message) {
-      if (message != null) {
+    try {
+      FirebaseMessaging.onMessageOpenedApp.listen((message) async {
+        debugPrint("FULL DATA = ${message.data}");
         final postId = message.data['postId'];
+        debugPrint("POST ID = $postId");
 
         if (postId != null) {
           navigatorKey.currentState?.push(
@@ -97,28 +125,56 @@ class _MyAppState extends State<MyApp> {
             ),
           );
         }
-      }
-    });
+      });
+    } catch (e) {
+      debugPrint("onMessageOpenedApp error: $e");
+    }
 
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print("Notification Received");
+    try {
+      FirebaseMessaging.instance.getInitialMessage().then((message) {
+        if (message != null) {
+          final postId = message.data['postId'];
 
-      flutterLocalNotificationsPlugin.show(
-        0,
-        message.notification?.title ?? '',
-        message.notification?.body ?? '',
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'default_channel',
-            'Default Notifications',
-            importance: Importance.max,
-            priority: Priority.high,
-          ),
-        ),
-      );
-    });
+          if (postId != null) {
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(
+                builder: (_) => NotificationPostPage(postId: postId),
+              ),
+            );
+          }
+        }
+      }).catchError((e) {
+        debugPrint("getInitialMessage error: $e");
+      });
+    } catch (e) {
+      debugPrint("getInitialMessage exception: $e");
+    }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initDeepLinks());
+    try {
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        debugPrint("Notification Received");
+
+        try {
+          flutterLocalNotificationsPlugin.show(
+            0,
+            message.notification?.title ?? '',
+            message.notification?.body ?? '',
+            const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'default_channel',
+                'Default Notifications',
+                importance: Importance.max,
+                priority: Priority.high,
+              ),
+            ),
+          );
+        } catch (e) {
+          debugPrint("Error showing local notification: $e");
+        }
+      });
+    } catch (e) {
+      debugPrint("onMessage error: $e");
+    }
   }
 
   Future<void> _initDeepLinks() async {
@@ -223,11 +279,37 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       theme: AppTheme.light,
       builder: (context, child) {
+        ErrorWidget.builder = (FlutterErrorDetails details) {
+          return Material(
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(24),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: AppColors.brand, size: 48),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Unable to display content',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    details.exceptionAsString(),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          );
+        };
         return MediaQuery(
           data: MediaQuery.of(
             context,
-          ).copyWith(textScaler: TextScaler.linear(1.0)),
-          child: child!,
+          ).copyWith(textScaler: const TextScaler.linear(1.0)),
+          child: child ?? const SizedBox.shrink(),
         );
       },
       navigatorKey: navigatorKey,
