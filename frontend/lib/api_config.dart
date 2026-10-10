@@ -1,14 +1,15 @@
-import 'package:flutter/foundation.dart';
-
 class ApiConfig {
   static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
   );
+
+  // Production Render Deployed Backend URL
+  static const String liveBaseUrl = 'https://ryitu.onrender.com';
+
   static final String baseUrl = _configuredBaseUrl.isNotEmpty
       ? _configuredBaseUrl
-      : defaultTargetPlatform == TargetPlatform.android
-      ? 'http://192.168.29.182:3001'
-      : 'http://localhost:3001';
+      : liveBaseUrl;
+
   static final String apiBaseUrl = '$baseUrl/api';
   static final String forgotPasswordSendOtpUrl =
       '$apiBaseUrl/auth/forgot-password/send-otp';
