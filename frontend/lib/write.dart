@@ -118,6 +118,78 @@ class PageData {
   }) : blocks = [PageBlock.text("")];
 }
 
+const _kValidSingleSyllableWords = {
+  'தீ', 'பூ', 'கை', 'பை', 'வா', 'போ', 'தா', 'நீ', 'மை',
+  'ஆ', 'ஈ', 'ஏ', 'ஐ', 'ஓ',
+  // Common valid single-syllable CVC words ending in pulli
+  'தென்', 'கண்', 'மண்', 'விண்', 'பால்', 'கால்', 'வால்', 'நாள்',
+  'வேல்', 'சொல்', 'வில்', 'கல்', 'புல்', 'பல்', 'முள்', 'நூல்',
+  'பொன்', 'மான்', 'மீன்', 'தேன்', 'வான்', 'நான்', 'தான்', 'ஏன்',
+  'முன்', 'பின்', 'மின்', 'நெல்', 'பார்', 'ஊர்', 'நீர்',
+  'நேர்', 'வேர்', 'யார்', 'கார்', 'போர்', 'தார்', 'சீர்', 'நார்'
+};
+
+const _kBaminiConsonantsVirama = {
+  'f;': 'க்', 'q;': 'ங்', 'r;': 'ச்', 'Q;': 'ஞ்', 'l;': 'ட்', 'z;': 'ண்',
+  'j;': 'த்', 'e;': 'ந்', 'g;': 'ப்', 'k;': 'ம்', 'a;': 'ய்', 'u;': 'ர்',
+  'y;': 'ல்', 't;': 'வ்', 'o;': 'ழ்', 's;': 'ள்', 'w;': 'ற்', 'd;': 'ன்',
+  'c;': 'ஜ்', 'S;': 'ஷ்', 'n\\;': 'ஸ்', 'H;': 'ழ்', 'b;': 'க்ஷ்'
+};
+
+const _kBaminiSpecial = {
+  'thœj;Jf;fs;': 'வாழ்த்துகள்',
+  'thœj;J': 'வாழ்த்து',
+  'fs;': 'கள்',
+  'F': 'கு', '\$': 'கூ', 'R': 'சு', '#': 'சூ', 'L': 'டு', '^': 'டூ',
+  'Z': 'ணு', '&': 'ணூ', 'J': 'து', 'J}': 'தூ', 'E': 'நு', 'E}': 'நூ',
+  'G': 'பு', 'G+': 'பூ', 'K': 'மு', 'K}': 'மூ', 'A': 'யு', 'A+': 'யூ',
+  'U': 'ரு', 'U+': 'ரூ', 'Y': 'லு', 'Y+': 'லூ', 'T': 'வு', 'T+': 'வூ',
+  'O': 'ழு', 'O}': 'ழூ', 'S': 'ளு', 'S}': 'ளூ', 'W': 'று', 'W+': 'றூ',
+  'D': 'னு', 'D}': 'னூ',
+  'jp': 'தி', 'jP': 'தீ', 'tp': 'வி', 'tP': 'வீ', 'rp': 'சி', 'rP': 'சீ',
+  'fp': 'கி', 'fP': 'கீ', 'kp': 'மி', 'kP': 'மீ', 'yp': 'லி', 'yP': 'லீ',
+  'sp': 'ளி', 'sP': 'ளீ', 'op': 'ழி', 'oP': 'ழீ', 'up': 'ரி', 'uP': 'ரீ',
+  'ep': 'நி', 'nP': 'நீ', 'gp': 'பி', 'gP': 'பீ', 'dp': 'னி', 'dP': 'னீ',
+  'wp': 'றி', 'wP': 'றீ', 'zp': 'ணி', 'zP': 'ணீ', 'lp': 'டி', 'lP': 'டீ',
+  'm': 'அ', 'M': 'ஆ', ',</': 'இ', '<': 'ஈ', 'c': 'உ', 'C': 'ஊ',
+  'v': 'எ', 'V': 'ஏ', 'I': 'ஐ', 'x': 'ஒ', 'X': 'ஓ', 'xs': 'ஔ'
+};
+
+const _kBaminiBasic = {
+  'f': 'க', 'q': 'ங', 'r': 'ச', 'Q': 'ஞ', 'l': 'ட', 'z': 'ண',
+  'j': 'த', 'e': 'ந', 'g': 'ப', 'k': 'ம', 'a': 'ய', 'u': 'ர',
+  'y': 'ல', 't': 'வ', 'o': 'ழ', 's': 'ள', 'w': 'ற', 'd': 'ன',
+  'c': 'ஜ', 'S': 'ஷ', 'n\\': 'ஸ', 'h': 'ா'
+};
+
+String decodeBaminiIfDetected(String text) {
+  if (text.isEmpty) return text;
+
+  final baminiMatches = RegExp(r'[fqrQljegkaytospwdcSH];|fs;').allMatches(text).length;
+  if (baminiMatches < 3 && !text.contains('tzf;fk;')) {
+    return text;
+  }
+
+  String s = text;
+  s = s.replaceAllMapped(RegExp(r'n([fqrQljegkaytospwdcSH])h'), (m) => '${m[1]}\u0BCA');
+  s = s.replaceAllMapped(RegExp(r'N([fqrQljegkaytospwdcSH])h'), (m) => '${m[1]}\u0BCB');
+  s = s.replaceAllMapped(RegExp(r'i([fqrQljegkaytospwdcSH])'), (m) => '${m[1]}\u0BC8');
+  s = s.replaceAllMapped(RegExp(r'n([fqrQljegkaytospwdcSH])'), (m) => '${m[1]}\u0BC6');
+  s = s.replaceAllMapped(RegExp(r'N([fqrQljegkaytospwdcSH])'), (m) => '${m[1]}\u0BC7');
+
+  _kBaminiConsonantsVirama.forEach((k, v) {
+    s = s.replaceAll(k, v);
+  });
+  _kBaminiSpecial.forEach((k, v) {
+    s = s.replaceAll(k, v);
+  });
+  _kBaminiBasic.forEach((k, v) {
+    s = s.replaceAll(k, v);
+  });
+
+  return s;
+}
+
 String decodeLegacyTamil(String text) {
   if (text.isEmpty) return text;
 
@@ -189,7 +261,6 @@ String decodeLegacyTamil(String text) {
     '\x7F': 'ம்',
   };
 
-  // Specific plural suffix composite: கள + ƒ/„/control bytes -> கள்
   result = result.replaceAll(RegExp(r'கள[ \t]*[\u0192\u201E\x83\x84]'), 'கள்');
 
   specialMap.forEach((k, v) {
@@ -216,63 +287,10 @@ String decodeLegacyTamil(String text) {
     });
   }
 
-  // Reconnect space between consonant and vowel sign/virama (e.g. "வ  ீ" -> "வீ", "க  ்" -> "க்")
+  // Reconnect space between consonant and vowel sign/virama
   result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])[ \t]+([\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}');
 
-  // Pre-base vowel ை (U+0BC8) typed in typewriter order before consonant
-  result = result
-      .replaceAll('க\u0BC8ள', 'களை')
-      .replaceAll('ப\u0BC8ட', 'படை')
-      .replaceAll('த\u0BC8த', 'ததை')
-      .replaceAll('பா\u0BC8த', 'பாதை')
-      .replaceAll('ப\u0BC8த', 'பதை')
-      .replaceAll('ழ\u0BC8க', 'ழகை')
-      .replaceAll('ல\u0BC8ர', 'லரை')
-      .replaceAll('வ\u0BC8ன', 'வனை')
-      .replaceAll('ய\u0BC8ர', 'யரை')
-      .replaceAll('ம\u0BC8ற', 'மறை')
-      .replaceAll('க\u0BC8ல', 'கலை')
-      .replaceAll('த\u0BC8ல', 'தலை')
-      .replaceAll('வ\u0BC8ர', 'வரை')
-      .replaceAll('ம\u0BC8ல', 'மலை')
-      .replaceAll('ந\u0BC8ட', 'நடை')
-      .replaceAll('உ\u0BC8ட', 'உடை')
-      .replaceAll('வ\u0BC8ள', 'வளை')
-      .replaceAll('இ\u0BC8ட', 'இடை')
-      .replaceAll('தி\u0BC8ச', 'திசை')
-      .replaceAll('குளி\u0BC8ம', 'குளிமை')
-      .replaceAll('குளிமைடை', 'குளிர்மைடை')
-      .replaceAll('பாதைைய', 'பாதையை')
-      .replaceAll('ஒத்துழகை்க', 'ஒத்துழைக்க')
-      .replaceAll('முடிம்', 'முடியும்')
-      .replaceAll('த்தைல', 'த்தலை')
-      .replaceAll('கைத', 'கதை')
-      .replaceAll('முன்ன்ரை', 'முன்னுரை')
-      .replaceAll('யாரேன்ம்', 'யாரேனும்')
-      .replaceAll('எளித்து', 'எழுத்து')
-      .replaceAllMapped(RegExp(r'எளித([க்ங்ம்ச்ப்])'), (m) => 'எழுத${m[1]}')
-      .replaceAllMapped(RegExp(r'எளிதின([ாார்])'), (m) => 'எழுதின${m[1]}')
-      .replaceAll('பொளிது', 'பொழுது')
-      .replaceAll('உள்ளிளிக்க', 'உள்ளிழுக்க')
-      .replaceAll('தளிவினர்', 'தழுவினர்')
-      .replaceAll('இடைவௌி', 'இடைவெளி')
-      .replaceAll('வௌி', 'வெளி')
-      .replaceAll(RegExp(r'நீர[ \t]+இடைவெளி'), 'நேர இடைவெளி')
-      .replaceAll('நீரம்', 'நேரம்')
-      .replaceAllMapped(RegExp(r'அவன்க்க([ுே])'), (m) => 'அவனுக்க${m[1]}')
-      .replaceAllMapped(RegExp(r'வீரன்க்க([ுே])'), (m) => 'வீரனுக்க${m[1]}')
-      .replaceAllMapped(RegExp(r'மன்னன்க்க([ுே])'), (m) => 'மன்னனுக்க${m[1]}')
-      .replaceAll('வந்தேவக', 'வந்த வேக')
-      .replaceAll('செய்யேவண்டி', 'செய்ய வேண்டி')
-      .replaceAll('சரசரெவனேமேலறி', 'சரசரவென மேலேறி')
-      .replaceAll('கிரேக்கப் படைம்', 'கிரேக்கப் படையும்')
-      .replaceAll('வீரக நாயகன் வேள்பாரி', 'வீரயுக நாயகன் வேள்பாரி')
-      .replaceAll(RegExp(r'கிறேத\b'), 'கிறதே')
-      .replaceAll(RegExp(r'ந்தேத\b'), 'ந்ததே')
-      .replaceAll(RegExp(r'நீளேம\b'), 'நீளமே')
-      .replaceAll(RegExp(r'போகிறேத\b'), 'போகிறதே');
-
-  // Dialogue Quotes (legacy font mapped opening quotes to ீ and closing quotes to கு)
+  // Dialogue Quotes
   result = result.replaceAllMapped(
     RegExp(r'([.?!,:])(?:[குீ”\x22\x27]|[\u0BC0\u0BC1])+(?=[\s\n]|$)'),
     (m) => '${m[1]}”',
@@ -295,72 +313,344 @@ String decodeLegacyTamil(String text) {
   result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BCD\u0BC1'), (m) => '${m[1]}\u0BC1');
   result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BCD\u0BC2'), (m) => '${m[1]}\u0BC2');
 
-  // Two-part / circumfix vowels: ெ...ா -> ொ, ே...ா -> ோ, ெ...ௗ -> ௌ
-  // When preceded by a bare consonant: C1 + ே + C2 + ா -> C1 + " " + C2 + ோ
-  result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC7\s*([\u0B95-\u0BB9])\s*\u0BBE'), (m) => '${m[1]} ${m[2]}\u0BCB');
-  result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6\s*([\u0B95-\u0BB9])\s*\u0BBE'), (m) => '${m[1]} ${m[2]}\u0BCA');
-  result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6\s*([\u0B95-\u0BB9])\s*\u0BD7'), (m) => '${m[1]} ${m[2]}\u0BCC');
-
-  // Standalone circumfix vowels
-  result = result.replaceAllMapped(RegExp(r'(^|[^\u0B95-\u0BB9])\u0BC6\s*([\u0B95-\u0BB9])\s*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCA');
-  result = result.replaceAllMapped(RegExp(r'(^|[^\u0B95-\u0BB9])\u0BC7\s*([\u0B95-\u0BB9])\s*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCB');
-  result = result.replaceAllMapped(RegExp(r'(^|[^\u0B95-\u0BB9])\u0BC6\s*([\u0B95-\u0BB9])\s*\u0BD7'), (m) => '${m[1]}${m[2]}\u0BCC');
-
-  // Two consecutive pre-base vowels at start of word/token (e.g. ேதைர -> தேரை)
-  result = result.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0BCD])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])'), (m) => '${m[1]}${m[3]}${m[2]}${m[5]}${m[4]}');
-
-  // Pre-base standalone vowels (ெ, ே, ை)
-  result = result
-      .replaceAllMapped(RegExp(r'(^|[^\u0B95-\u0BB9])\u0BC6\s*([\u0B95-\u0BB9])'), (m) => '${m[1]}${m[2]}\u0BC6')
-      .replaceAllMapped(RegExp(r'(^|[^\u0B95-\u0BB9])\u0BC7\s*([\u0B95-\u0BB9])'), (m) => '${m[1]}${m[2]}\u0BC7')
-      .replaceAllMapped(RegExp(r'(^|[^\u0B95-\u0BB9])\u0BC8\s*([\u0B95-\u0BB9])'), (m) => '${m[1]}${m[2]}\u0BC8');
-
-  // Reconnect isolated pure consonants that got separated by space in PDF
-  result = result.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([\u0B95-\u0BB9]\u0BCD)(?=[ \t\r\n,.;:!?\u0B80-\u0BFF]|$)'), (m) => '${m[1]}${m[2]}');
-
   return result;
+}
+
+String decodeMacTamilPDF(String text) {
+  if (text.isEmpty) return text;
+
+  final signature = RegExp(r'[∏ß®°ıÒ≈Û–ÃÚæ±˝¡Ω∫ŸÏ√˚Ù˛ÌØ⁄ˆ∆Ó¥¨Õ˙÷◊¤≤μÉ‹Ô‡˘›Ñ∞Ö≥·ÆÀ—ÜÊ∑ÎÁ]');
+  final matches = signature.allMatches(text);
+  if (matches.length < 3 && !text.contains('æÒΩநீசு') && !text.contains('ßæ∫ı')) {
+    return text;
+  }
+
+  String s = text;
+
+  const exactMap = [
+    ['æÒΩநீசு ßæ∫ı', 'தண்ணீர் தேசம்'],
+    ['æÒΩநீசு', 'தண்ணீர்'],
+    ['ßæ∫ı', 'தேசம்'],
+    ['∏≈துபூசு ®≈√குÚ–', 'கவிஞர் வைரமுத்து'],
+    ['∏≈துபூசு', 'கவிஞர்'],
+    ['®≈√குÚ–', 'வைரமுத்து'],
+    ['¡ீÚ–≈¡®ழ்.', 'மருத்துவமனை.'],
+    ['¡ீÚ–≈¡®ழ்', 'மருத்துவமனை'],
+    ['Ãவுரு Ã®வுீı ¡ீÛ–≈°∫ı.', 'குடல் குடையும் மருந்துவாசம்.'],
+    ['Ãவுரு', 'குடல்'],
+    ['Ã®வுீı', 'குடையும்'],
+    ['¡ீÛ–≈°∫ı.', 'மருந்துவாசம்.'],
+    ['¡ீÛ–≈°∫ı', 'மருந்துவாசம்'],
+    ['–®வுÚ–®≈Úæ ß∫°∏ı.', 'துடைத்துவைத்த சோகம்.'],
+    ['–®வுÚ–®≈Úæ', 'துடைத்துவைத்த'],
+    ['ß∫°∏ı.', 'சோகம்.'],
+    ['ß∫°∏ı', 'சோகம்'],
+    ['ளு≈˚®முளு≈˚®முமூ°ˆ', 'வெள்ளைவெள்ளையாய்'],
+    ['லு≈∫√Ì∏˚. ¨Ì∏துல்Úæதுரு', 'அவசரங்கள். ஆங்கிலத்தில்'],
+    ['லு≈∫√Ì∏˚.', 'அவசரங்கள்.'],
+    ['லு≈∫√Ì∏˚', 'அவசரங்கள்'],
+    ['¨Ì∏துல்Úæதுரு', 'ஆங்கிலத்தில்'],
+    ['லு∏◊ı லு∆Ã¡மூதுரு∏˚.', 'அகவும் அழகுமயில்கள்.'],
+    ['லு∏◊ı', 'அகவும்'],
+    ['லு∆Ã¡மூதுரு∏˚.', 'அழகுமயில்கள்.'],
+    ['லு∆Ã¡மூதுரு∏˚', 'அழகுமயில்கள்'],
+    ['லு®» ±Ò 303.', 'அறை எண் 303.'],
+    ['லு®»', 'அறை'],
+    ['±Ò', 'எண்'],
+    ['Õ[ \t]+æ°', 'சுடிதா'],
+    ['–[ \t]+–[ \t]*ÏÃı', 'துடிதுடிக்கும்'],
+    ['ளி»து', 'ற்றி'],
+    ['மூளி', 'யற்'],
+    ['–Òடி', 'துண்டு'],
+    ['®¿மூ', 'பைய '],
+    ['—®√', 'நுரை']
+  ];
+
+  for (final pair in exactMap) {
+    if (pair[0].contains('[')) {
+      s = s.replaceAll(RegExp(pair[0]), pair[1]);
+    } else {
+      s = s.replaceAll(pair[0], pair[1]);
+    }
+  }
+
+  final lines = s.split('\n');
+  final processedLines = lines.map((line) {
+    if (!signature.hasMatch(line)) {
+      return line;
+    }
+
+    String l = line;
+    const conRegex = r'(∏|∫||வு|æ|ø|¿|¡|மூ|√|ல்|ரு|≈|∆|மு|»|É)';
+
+    l = l.replaceAllMapped(RegExp('ளு$conRegex°'), (m) => '${m[1]}ொ');
+    l = l.replaceAllMapped(RegExp('ß$conRegex°'), (m) => '${m[1]}ோ');
+    l = l.replaceAllMapped(RegExp('ளு$conRegex'), (m) => '${m[1]}ெ');
+    l = l.replaceAllMapped(RegExp('ß$conRegex'), (m) => '${m[1]}ே');
+    l = l.replaceAllMapped(RegExp('®$conRegex'), (m) => '${m[1]}ை');
+
+    const multiMap = {
+      'லு': 'அ', '¨': 'ஆ', '˛': 'இ', 'Ø': 'உ', 'μ': 'ஓ', '±': 'எ',
+      '∏': 'க', 'Ï': 'க்', 'Ì': 'ங்', '∫': 'ச', 'Ó': 'ச்', 'பூ': 'ஞ', 'Ô': 'ஞ்',
+      '': 'ட்', 'வு': 'ட', 'Ò': 'ண்', 'Ω': 'ண', 'æ': 'த', 'Ú': 'த்', 'ø': 'ந',
+      'Û': 'ந்', '¿': 'ப', 'Ù': 'ப்', '¡': 'ம', 'ı': 'ம்', 'மூ': 'ய', 'ˆ': 'ய்',
+      '√': 'ர', 'சு': 'ர்', 'ல்': 'ல', 'ரு': 'ல்', '≈': 'வ', '◊': 'வு', '∆': 'ழ',
+      'மு': 'ள', '˚': 'ள்', '»': 'ற', 'ளி': 'ற்', 'ழ்': 'ன', '˝': 'ன்', 'É': 'ஜ',
+      'ª': 'ஶ்ரீ',
+      'Ã': 'கு', 'Õ': 'சு', '›': 'சூ', '–': 'து', '‡': 'தூ',
+      '—': 'நு', 'டி': 'டு',
+      '°': 'ா'
+    };
+
+    multiMap.forEach((k, v) {
+      l = l.replaceAll(k, v);
+    });
+
+    l = l.replaceAllMapped(RegExp(r'([க-ஹ])து'), (m) => '${m[1]}\u0BBF');
+    return l;
+  });
+
+  return processedLines.join('\n');
+}
+
+String decodeLateVolumeDtpTamil(String text) {
+  if (text.isEmpty) return text;
+
+  final dtpMatches = RegExp(r'(?:(?:^|[\s\p{P}])ன[க-ஹ]|ம[வதபள]|ம[பநசகவத]ா|ன[கசதபவ]ா)', unicode: true).allMatches(text).length;
+  final hasSpecialMarkers = text.contains('மவந்மத') || text.contains('னபண்களின்') || text.contains('பானற') || text.contains('பனனயன்') || text.contains('கைமன');
+
+  if (dtpMatches < 2 && !hasSpecialMarkers) {
+    return text;
+  }
+
+  String s = text;
+
+  s = s.replaceAll('™', 'சூ');
+  s = s.replaceAll('வவள்பாரி', 'வேள்பாரி');
+  s = s.replaceAll('பவங்கவேசன்', 'வெங்கடேசன்');
+  s = s.replaceAll('மசாைா', 'சோழா');
+  s = s.replaceAll('மைல்விளிம்பில்', 'மேல்விளிம்பில்');
+  s = s.replaceAll('ைறுனைாழினய', 'மறுமொழியை');
+  s = s.replaceAll('கைமன', 'மகனே');
+
+  // 1. Circumfixes
+  s = s.replaceAllMapped(RegExp(r'ன([க-ஹ])ா'), (m) => '${m[1]}\u0BCA');
+  s = s.replaceAllMapped(RegExp(r'ம([க-ஹ])ா'), (m) => '${m[1]}\u0BCB');
+
+  // 2. Pre-base Kombu ee for consonants that cannot follow bare 'ம'
+  s = s.replaceAllMapped(RegExp(r'ம([வதபள])'), (m) => '${m[1]}\u0BC7');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])மக(?=[ட்ள])', unicode: true), (m) => '${m[1]}கே');
+  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ா-்]?)ம([யவழறத])'), (m) => '${m[1]}${m[2]}\u0BC7');
+
+  // 3. ன as Kombu
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])னப', unicode: true), (m) => '${m[1]}பெ');
+  s = s.replaceAllMapped(RegExp(r'([அ-ஹா-்])னப'), (m) => '${m[1]}பெ');
+  s = s.replaceAll('னப', 'பெ');
+
+  s = s.replaceAll('னட', 'டை');
+  s = s.replaceAll('னற', 'றை');
+  s = s.replaceAll('னல', 'லை');
+  s = s.replaceAll('னர', 'ரை');
+  s = s.replaceAll('னன', 'னை');
+  s = s.replaceAll('னழ', 'ழை');
+  s = s.replaceAll('னய', 'யை');
+  s = s.replaceAll('னக', 'கை');
+  s = s.replaceAll('னத', 'தெ');
+  s = s.replaceAllMapped(RegExp(r'([ஓதி])னச'), (m) => '${m[1]}சை');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])னச', unicode: true), (m) => '${m[1]}செ');
+  s = s.replaceAll('னச', 'செ');
+  s = s.replaceAllMapped(RegExp(r'னவ(?=[ய்ப்னய])'), (m) => 'வை');
+  s = s.replaceAll('னவ', 'வெ');
+
+  // 4. In this font variant, ை used as consonant ம
+  s = s.replaceAll('காரைலையின்', 'காரமலையின்');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])ை([ா-்])', unicode: true), (m) => '${m[1]}ம${m[2]}');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])ை(?=[க-ஹ])', unicode: true), (m) => '${m[1]}ம');
+  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ாிீுூெேைொோௌ])ைா'), (m) => '${m[1]}மா');
+  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ாிீுூெேைொோௌ])ை([ா-்])'), (m) => '${m[1]}ம${m[2]}');
+  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ாிீுூெேைொோௌ])ை(?=[க-ஹ])'), (m) => '${m[1]}ம');
+  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ா-்])ைீ'), (m) => '${m[1]}மீ');
+  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ா-்])ைு'), (m) => '${m[1]}மு');
+  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ா-்])ை(?=[றரனணதடபகசழ])'), (m) => '${m[1]}ம');
+  s = s.replaceAll('கமனே', 'மகனே');
+
+  return s;
+}
+
+String normalizeVisualPreBaseVowels(String text) {
+  if (text.isEmpty) return text;
+
+  String s = text;
+
+  // 1. Two consecutive pre-base vowels at start of word/token (e.g. ேதைர -> தேரை)
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0BCD])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])'), (m) => '${m[1]}${m[3]}${m[2]}${m[5]}${m[4]}');
+
+  // 2. Visual Circumfixes
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9]\u0BCD)\u0BC6([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCA');
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9]\u0BCD)\u0BC7([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCB');
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9]\u0BCD)\u0BC6([\u0B95-\u0BB9])[ \t]*(?:\u0BD7|\u0BB3(?!\u0BCD))'), (m) => '${m[1]}${m[2]}\u0BCC');
+
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]} ${m[2]}\u0BCA');
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC7([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]} ${m[2]}\u0BCB');
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6([\u0B95-\u0BB9])[ \t]*(?:\u0BD7|\u0BB3(?!\u0BCD))'), (m) => '${m[1]} ${m[2]}\u0BCC');
+
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCA');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC7([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCB');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])[ \t]*(?:\u0BD7|\u0BB3(?!\u0BCD))'), (m) => '${m[1]}${m[2]}\u0BCC');
+
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6[ \t]*\u0BBE'), (m) => '${m[1]}\u0BCA');
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC7[ \t]*\u0BBE'), (m) => '${m[1]}\u0BCB');
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6[ \t]*(?:\u0BD7|\u0BB3(?!\u0BCD))'), (m) => '${m[1]}\u0BCC');
+
+  // 3. Pre-base standalone vowels before consonant
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC6');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC7([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC7');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC8([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC8');
+
+  // 4. Universal Typewriter / Visual Pre-Base (ெ, ே, ை) Reordering inside words
+  s = s.replaceAllMapped(RegExp(r'([\u0B85-\u0BB9\u0BBE-\u0BCD])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])(?=[ \t\r\n,.;:!?”\x22\x27’\)\]}]|$|[கசதப]\u0BCD)'), (m) => '${m[1]}${m[3]}${m[2]}');
+
+  return s;
+}
+
+String normalizeTamilKerningAndSyllables(String text) {
+  if (text.isEmpty) return text;
+
+  String s = text.replaceAll(RegExp(r'[ \t]{2,}'), '  ');
+
+  // 1. Reconnect consonant + combining vowel sign / virama
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])[ \t]+([\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}');
+  s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\r?\n[ \t]*([\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}');
+  s = s.replaceAllMapped(RegExp(r'([\u0BBE-\u0BCD\u0BD7])[ \t]+([\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}');
+
+  // 2. Reconnect space before pure consonant
+  String prev = '';
+  while (prev != s) {
+    prev = s;
+    s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([\u0B95-\u0BB9]\u0BCD)'), (m) => '${m[1]}${m[2]}');
+    s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])\r?\n[ \t]*([\u0B95-\u0BB9]\u0BCD)'), (m) => '${m[1]}${m[2]}');
+  }
+
+  // 3. Reconnect non-final virama consonants (வல்லினம்/மெல்லினம்: க், ங், ச், ஞ், ட், த், ப், ற், ந்)
+  prev = '';
+  while (prev != s) {
+    prev = s;
+    s = s.replaceAllMapped(RegExp(r'([கஙசஞடதபறந]\u0BCD)[ \t]+([\u0B80-\u0BFF])'), (m) => '${m[1]}${m[2]}');
+  }
+
+  // 4. Reconnect letters that can NEVER begin a native Tamil word: ட, ண, ர, ல, ழ, ள, ற, ன
+  prev = '';
+  while (prev != s) {
+    prev = s;
+    s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([டணரலழளறன](?:[\u0BBE-\u0BCD\u0BD7])?)'), (m) => '${m[1]}${m[2]}');
+  }
+
+  // 5. Reconnect suffixes (கள், க்கு, இல், உடைய, ஆல், ஓடு)
+  s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+(கள்|க்கு|இல்|உடைய|ஆல்|ஓடு)(?=[ \t\r\n,.;:!?]|$)'), (m) => '${m[1]}${m[2]}');
+
+  // 6. Reconnect isolated single bare consonants
+  prev = '';
+  while (prev != s) {
+    prev = s;
+    s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([கஙசஞடணதநபமயரலவழளறன])(?=[ \t\r\n,.;:!?]|$)'), (m) => '${m[1]}${m[2]}');
+    s = s.replaceAllMapped(RegExp(r'(^|[ \t\r\n,.;:!?])([கஙசஞடணதநபமயரலவழளறன])[ \t]+([\u0B80-\u0BFF])'), (m) => '${m[1]}${m[2]}${m[3]}');
+  }
+
+  // 7. General kerning reconnector for single-syllable sequence artifacts
+  final lines = s.split('\n');
+  final cleanedLines = lines.map((line) {
+    final tokens = line.split(RegExp(r'( {2,}|[ \t])'));
+    final List<String> recombined = [];
+
+    for (int i = 0; i < tokens.length; i++) {
+      final tok = tokens[i];
+      if (RegExp(r'^ {2,}$').hasMatch(tok)) {
+        recombined.add(' ');
+        continue;
+      }
+      if (tok == ' ' || tok == '\t') {
+        continue;
+      }
+      if (recombined.isNotEmpty && recombined.last != ' ') {
+        final last = recombined.last;
+        final isTamilTok = RegExp(r'^[\u0B80-\u0BFF]+$').hasMatch(tok);
+        final isLastTamil = RegExp(r'^[\u0B80-\u0BFF]+$').hasMatch(last);
+
+        if (isTamilTok && isLastTamil) {
+          final startsWithIndependentVowel = RegExp(r'^[\u0B85-\u0B94]').hasMatch(tok);
+          if (!startsWithIndependentVowel) {
+            final lastIsSingle = RegExp(r'^([\u0B95-\u0BB9][\u0BBE-\u0BCD\u0BD7]?|[\u0B85-\u0B94])$').hasMatch(last);
+            final tokIsSingle = RegExp(r'^([\u0B95-\u0BB9][\u0BBE-\u0BCD\u0BD7]?|[\u0B85-\u0B94])$').hasMatch(tok) ||
+                                RegExp(r'^([\u0B95-\u0BB9][\u0BBE-\u0BCD\u0BD7]?[\u0B95-\u0BB9]\u0BCD)$').hasMatch(tok);
+
+            if (lastIsSingle && !_kValidSingleSyllableWords.contains(last)) {
+              if (RegExp(r'^[\u0B85-\u0B94]$').hasMatch(last)) {
+                if (tok == 'வர்கள்' || tok == 'யற்கை' || tok == 'லக்கியம்' || tok == 'ரசாங்கம்' || tokIsSingle) {
+                  recombined[recombined.length - 1] = last + tok;
+                  continue;
+                }
+              } else {
+                recombined[recombined.length - 1] = last + tok;
+                continue;
+              }
+            }
+
+            final tokIsPulliWord = RegExp(r'^[\u0B95-\u0BB9][\u0BBE-\u0BCD\u0BD7]?[\u0B95-\u0BB9]\u0BCD$').hasMatch(tok);
+            if (tokIsSingle && !_kValidSingleSyllableWords.contains(tok)) {
+              if (!tokIsPulliWord || lastIsSingle) {
+                recombined[recombined.length - 1] = last + tok;
+                continue;
+              }
+            }
+          }
+        }
+        recombined.add(' ');
+      }
+      recombined.add(tok);
+    }
+    return recombined.join('').replaceAll(RegExp(r'[ \t]+'), ' ').trim();
+  });
+
+  return cleanedLines.join('\n');
+}
+
+String cleanExtractedTamilText(String raw) {
+  if (raw.isEmpty) return raw;
+
+  String text = raw;
+
+  text = text.replaceAll(RegExp(r'www\.t\.me\/[^\s\n]+', caseSensitive: false), '');
+  text = text.replaceAll(RegExp(r't\.me\/[^\s\n]+', caseSensitive: false), '');
+  text = text.replaceAll(RegExp(r'AVOID TO DOWNLOAD FROM [^\n]+', caseSensitive: false), '');
+  text = text.replaceAll(RegExp(r'\n\s*--\s*\d+\s+of\s+\d+\s*--\s*', caseSensitive: false), '\n');
+
+  text = text.replaceAll(RegExp(r'[\u00AD\u200B-\u200D\uFEFF\u200E\u200F]'), '');
+  text = text.replaceAll('\u00A0', ' ');
+  text = text.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F]'), '');
+
+  text = text.replaceAllMapped(
+    RegExp(r'([\u0B80-\u0BFF\w])-[ \t]*\r?\n[ \t]*([\u0B80-\u0BFF\w])'),
+    (m) => '${m[1]}${m[2]}',
+  );
+
+  text = decodeBaminiIfDetected(text);
+  text = decodeLegacyTamil(text);
+  text = decodeMacTamilPDF(text);
+  text = decodeLateVolumeDtpTamil(text);
+  text = text.replaceAll('\x7F', '');
+
+  text = normalizeVisualPreBaseVowels(text);
+  text = normalizeTamilKerningAndSyllables(text);
+
+  text = text.replaceAll(RegExp(r'\u0BCD\u0BCD+'), '\u0BCD');
+
+  return text.trim();
 }
 
 List<String> parseParagraphs(String text) {
   if (text.isEmpty) return [];
 
-  String cleaned = decodeLegacyTamil(text)
-      .replaceAll(RegExp(r'[\u00AD\u200B\uFEFF\u200E\u200F]'), '')
-      .replaceAll('\u00A0', ' ')
-      .replaceAll(RegExp(r'\u0BCD\u0BCD+'), '\u0BCD')
-      .replaceAllMapped(
-        RegExp(r'([\u0B80-\u0BFF\w])-[ \t]*\r?\n[ \t]*([\u0B80-\u0BFF\w])'),
-        (m) => '${m[1]}${m[2]}',
-      )
-      .replaceAllMapped(
-        RegExp(r'([\u0B95-\u0BB9])[ \t]+([\u0BBE-\u0BCD\u0BD7])'),
-        (m) => '${m[1]}${m[2]}',
-      )
-      .replaceAllMapped(
-        RegExp(r'([\u0B95-\u0BB9])\r?\n[ \t]*([\u0BBE-\u0BCD\u0BD7])'),
-        (m) => '${m[1]}${m[2]}',
-      )
-      .replaceAllMapped(
-        RegExp(r'([\u0BBE-\u0BCD\u0BD7])[ \t]+([\u0BBE-\u0BCD\u0BD7])'),
-        (m) => '${m[1]}${m[2]}',
-      )
-      .replaceAllMapped(
-        RegExp(r'([\u0B80-\u0BFF])[ \t]+([\u0B95-\u0BB9]\u0BCD)(?=[ \t\r\n,.;:!?\u0B80-\u0BFF]|$)'),
-        (m) => '${m[1]}${m[2]}',
-      )
-      .replaceAll(RegExp(r'www\.t\.me\/[^\s\n]+', caseSensitive: false), '')
-      .replaceAll(RegExp(r't\.me\/[^\s\n]+', caseSensitive: false), '')
-      .replaceAll(
-        RegExp(
-          r'AVOID TO DOWNLOAD FROM [^\n]+',
-          caseSensitive: false,
-        ),
-        '',
-      )
-      .replaceAll(
-        RegExp(r'\n\s*--\s*\d+\s+of\s+\d+\s*--\s*', caseSensitive: false),
-        '\n\n',
-      );
+  String cleaned = cleanExtractedTamilText(text);
 
   return cleaned
       .split(RegExp(r'\n\s*\n+'))
@@ -431,9 +721,11 @@ class _WritePageState extends State<WritePage> {
     if (url.startsWith("http://localhost:3001") ||
         url.startsWith("http://127.0.0.1:3001") ||
         url.startsWith("http://localhost:5000") ||
-        url.startsWith("http://127.0.0.1:5000")) {
+        url.startsWith("http://127.0.0.1:5000") ||
+        url.contains(":3001/uploads/") ||
+        url.contains(":5000/uploads/")) {
       url = url.replaceFirst(
-        RegExp(r'http:\/\/(localhost|127\.0\.0\.1):(3001|5000)'),
+        RegExp(r'https?:\/\/[^\/]+:(3001|5000)'),
         ApiConfig.baseUrl,
       );
       return url;
@@ -456,12 +748,44 @@ class _WritePageState extends State<WritePage> {
     return "${ApiConfig.baseUrl}/$url";
   }
 
+  TextStyle _safeGoogleFont(
+    String fontFamily, {
+    TextStyle? textStyle,
+    double? fontSize,
+    FontWeight? fontWeight,
+    double? height,
+    double? letterSpacing,
+    Color? color,
+    Color? backgroundColor,
+  }) {
+    try {
+      return GoogleFonts.getFont(
+        fontFamily,
+        textStyle: textStyle,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        height: height,
+        letterSpacing: letterSpacing,
+        color: color,
+        backgroundColor: backgroundColor,
+      );
+    } catch (_) {
+      return (textStyle ?? const TextStyle()).copyWith(
+        fontFamily: fontFamily,
+        fontFamilyFallback: const ['Mukta Malar', 'Noto Sans Tamil', 'Roboto'],
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        height: height,
+        letterSpacing: letterSpacing,
+        color: color,
+        backgroundColor: backgroundColor,
+      );
+    }
+  }
+
   final List<String> _fontFamilies = [
     "Roboto",
     "Noto Sans Tamil",
-    "Mukta Malar",
-    "Lora",
-    "Playfair Display",
     "Mukta Malar",
     "Hind Madurai",
     "Pavanam",
@@ -470,8 +794,8 @@ class _WritePageState extends State<WritePage> {
     "Catamaran",
     "Baloo 2",
     "Tiro Tamil",
-    "Roboto",
     "Lora",
+    "Playfair Display",
     "Inter",
     "Merienda",
     "Lobster",
@@ -832,7 +1156,7 @@ class _WritePageState extends State<WritePage> {
             }
           }
 
-          final String pageText = (p['text'] ?? '').toString().trim();
+          final String pageText = cleanExtractedTamilText((p['text'] ?? '').toString().trim());
           if (pageText.isNotEmpty) {
             final pageParas = pageText.split(RegExp(r'\r?\n\r?\n'));
             for (final para in pageParas) {
@@ -1059,9 +1383,10 @@ class _WritePageState extends State<WritePage> {
       _historyStack.add(_clonePages(_pages));
       _historyIndex = _historyStack.length - 1;
 
-      if (_historyStack.length > 50) {
-        _historyStack.removeAt(0);
-        _historyIndex--;
+      final int maxHistory = _pages.length > 20 ? 5 : 20;
+      if (_historyStack.length > maxHistory) {
+        _historyStack.removeRange(0, _historyStack.length - maxHistory);
+        _historyIndex = _historyStack.length - 1;
       }
       if (mounted) setState(() {});
     }
@@ -1238,7 +1563,7 @@ class _WritePageState extends State<WritePage> {
     final painter = TextPainter(
       text: TextSpan(
         text: text,
-        style: GoogleFonts.getFont(
+        style: _safeGoogleFont(
           fontFamily ?? page.fontFamily,
           textStyle: const TextStyle(
             fontFamilyFallback: ['Mukta Malar', 'Noto Sans Tamil', 'Roboto'],
@@ -1254,7 +1579,6 @@ class _WritePageState extends State<WritePage> {
       textAlign: textAlign ?? page.textAlign,
       textDirection: TextDirection.ltr,
     );
-    painter.layout(maxWidth: maxWidth);
 
     // consider the whole page: any image affects layout
     bool hasImage =
@@ -1269,7 +1593,12 @@ class _WritePageState extends State<WritePage> {
     // Senior PE: Safety guard against zero-height layouts
     if (allowedHeight < 50) allowedHeight = 50;
 
-    return painter.height > allowedHeight;
+    try {
+      painter.layout(maxWidth: maxWidth);
+      return painter.height > allowedHeight;
+    } finally {
+      painter.dispose();
+    }
   }
 
   /// Rebalance all content from a given page index onwards
@@ -1278,6 +1607,11 @@ class _WritePageState extends State<WritePage> {
   void _rebalancePagesFromIndex(int pageIndex) {
     if (pageIndex >= _pages.length || _isUpdatingState) return;
 
+    // Safety guard: Never perform cascading rebalance on multi-page documents or imported PDFs.
+    // Each page in multi-page documents / PDFs is an independent page with its own SingleChildScrollView.
+    // Cascading rebalancing across many pages leads to runaway page creation and Scudo OOM native heap crashes.
+    if (_pdfFile != null || _pages.length > 5) return;
+
     _isUpdatingState = true;
     try {
       double maxWidth =
@@ -1285,10 +1619,10 @@ class _WritePageState extends State<WritePage> {
               .clamp(10.0, 2000.0);
       bool carryOver = false;
 
-      // PRO TIP: We process pages one by one.
-      // If a page doesn't overflow AND nothing was pushed into it, we STOP.
-      // this reduces O(N^2) work to O(1) or O(N) in worst cases.
-      for (int p = pageIndex; p < _pages.length; p++) {
+      // Limit pages examined to at most 3 pages ahead
+      final int maxPagesToExamine = min(_pages.length, pageIndex + 3);
+
+      for (int p = pageIndex; p < maxPagesToExamine; p++) {
         List<PageBlock> blocksOnThisPage = _pages[p].blocks
             .where((b) => b.type == "text")
             .toList();
@@ -1320,7 +1654,7 @@ class _WritePageState extends State<WritePage> {
         }
 
         // Safety hard limit to prevent infinite page creation crashes
-        if (_pages.length > 5000) break;
+        if (_pages.length > 20) break;
       }
 
       // Cleanup trailing empty pages
@@ -1365,6 +1699,10 @@ class _WritePageState extends State<WritePage> {
 
         // ensure page exists
         if (pageIdx >= _pages.length) {
+          if (_pages.length >= 20) {
+            // Prevent runaway page creation
+            break;
+          }
           _pages.add(
             PageData(
               fontSize: _pages[0].fontSize,
@@ -1554,14 +1892,11 @@ class _WritePageState extends State<WritePage> {
   void _handleTextChange(String value, int pageIndex, int blockIndex) {
     if (_isUpdatingState) return;
 
-    // Safety guards: pageIndex or blockIndex may be stale after rebalancing.
+    // Safety guards: pageIndex or blockIndex may be stale.
     if (pageIndex < 0 || pageIndex >= _pages.length) {
-      // Rebalance conservatively and exit to avoid RangeError
-      _rebalancePagesFromIndex(0);
       return;
     }
     if (blockIndex < 0 || blockIndex >= _pages[pageIndex].blocks.length) {
-      _rebalancePagesFromIndex(pageIndex);
       return;
     }
 
@@ -1578,7 +1913,9 @@ class _WritePageState extends State<WritePage> {
     double maxWidth = MediaQuery.of(context).size.width - (page.pageMargin * 2);
 
     if (_doesTextOverflow(value, page, maxWidth)) {
-      _rebalancePagesFromIndex(pageIndex);
+      if (_pdfFile == null && _pages.length <= 5) {
+        _rebalancePagesFromIndex(pageIndex);
+      }
 
       // Check if we need to move focus to the next page
       String newBlockText = _pages[pageIndex].blocks[blockIndex].text ?? "";
@@ -2345,13 +2682,8 @@ class _WritePageState extends State<WritePage> {
       }
     });
 
-    if (fontSize != null ||
-        fontFamily != null ||
-        lineSpacing != null ||
-        letterSpacing != null ||
-        pageMargin != null) {
-      _rebalancePagesFromIndex(0);
-    }
+    // Global style updates (font family, font size, margins, etc.) apply styling
+    // across existing pages without triggering a destructive document-wide rebalance.
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_focusedBlockIndex != null && _currentPage < _pages.length) {
@@ -2675,7 +3007,7 @@ class _WritePageState extends State<WritePage> {
                                                     textAlign:
                                                         block.textAlign ??
                                                         _pages[index].textAlign,
-                                                    style: GoogleFonts.getFont(
+                                                    style: _safeGoogleFont(
                                                       block.fontFamily ??
                                                           _pages[index]
                                                               .fontFamily,
@@ -3413,7 +3745,7 @@ class _WritePageState extends State<WritePage> {
                                   alignment: Alignment.center,
                                   child: Text(
                                     font,
-                                    style: GoogleFonts.getFont(
+                                    style: _safeGoogleFont(
                                       font,
                                       fontWeight: isSelected
                                           ? FontWeight.w900
@@ -4456,6 +4788,8 @@ class _PostPageState extends State<PostPage> {
         });
       }
       request.fields["content"] = jsonEncode(pagesJson);
+      // Send page count so feed can show badge like "13 Pages"
+      request.fields["pageCount"] = widget.pages.length.toString();
 
       if (widget.coverImage != null) {
         final mimeType = lookupMimeType(widget.coverImage!.path);

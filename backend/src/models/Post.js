@@ -86,6 +86,18 @@ const postSchema = new mongoose.Schema(
     pdf_path: {
       type: String,
       default: ''
+    },
+    pageCount: {
+      type: Number,
+      default: 0
+    },
+    pdf_url: {
+      type: String,
+      default: ''
+    },
+    is_pdf: {
+      type: Boolean,
+      default: false
     }
   },
   {

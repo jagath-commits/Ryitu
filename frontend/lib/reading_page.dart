@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -32,7 +33,7 @@ class ReadingPage extends StatefulWidget {
   State<ReadingPage> createState() => _ReadingPageState();
 }
 
-class _ReadingPageState extends State<ReadingPage> {
+class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   late int _currentPage;
   late int _totalPages;
   bool _isLoading = false;
@@ -53,12 +54,37 @@ class _ReadingPageState extends State<ReadingPage> {
   final Map<int, String> _extractedPageTexts = {};
   final Map<int, List<String>> _extractedPageImages = {};
 
+  // Table of Contents
+  List<Map<String, dynamic>> _toc = [];
+  bool _isTocLoading = false;
+
   @override
   void initState() {
     super.initState();
     _currentPage = widget.initialPage > 0 ? widget.initialPage : 1;
     _totalPages = widget.totalPages > 0 ? widget.totalPages : 1;
+    // Apply immersive mode after the first frame to ensure it takes effect
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    });
+    WidgetsBinding.instance.addObserver(this);
     _loadUserAndData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Restore edge-to-edge when leaving the reading page
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  // Re-apply immersive mode whenever app resumes (handles swipe-reveal auto-restore)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
   }
 
   Future<void> _loadUserAndData() async {
@@ -68,6 +94,7 @@ class _ReadingPageState extends State<ReadingPage> {
     await _fetchProgress();
     await _fetchBookmarks();
     _fetchPageContent(_currentPage);
+    _fetchToc(); // Load Table of Contents in background
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -184,7 +211,7 @@ class _ReadingPageState extends State<ReadingPage> {
   }
 
   Future<void> _fetchPageContent(int page) async {
-    if (_extractedPageTexts.containsKey(page) || _extractedPageImages.containsKey(page)) return;
+    if (_extractedPageTexts.containsKey(page)) return;
     try {
       final uri = Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/page/$page');
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
@@ -192,10 +219,17 @@ class _ReadingPageState extends State<ReadingPage> {
         final decoded = jsonDecode(res.body);
         if (decoded['success'] == true && decoded['data'] != null) {
           final text = decoded['data']['text']?.toString().trim() ?? '';
-          final rawImages = decoded['data']['images'];
+          // IMPORTANT: isTamil flag from backend — if true, completely ignore images
+          final isTamil = decoded['data']['isTamil'] == true;
+
+          // Only load images for NON-Tamil, NON-text pages (pure image-only scanned PDFs)
+          // If ANY text exists OR it's a Tamil PDF → no images at all
           List<String> images = [];
-          if (rawImages is List) {
-            images = rawImages.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+          if (!isTamil && text.isEmpty) {
+            final rawImages = decoded['data']['images'];
+            if (rawImages is List) {
+              images = rawImages.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+            }
           }
 
           if (mounted) {
@@ -203,6 +237,7 @@ class _ReadingPageState extends State<ReadingPage> {
               if (text.isNotEmpty) {
                 _extractedPageTexts[page] = text;
               }
+              // Only store images if we explicitly allowed them above
               if (images.isNotEmpty) {
                 _extractedPageImages[page] = images;
               }
@@ -224,6 +259,149 @@ class _ReadingPageState extends State<ReadingPage> {
     });
     _saveProgress();
     _fetchPageContent(page);
+  }
+
+  /// Fetch Table of Contents from backend
+  Future<void> _fetchToc() async {
+    if (_isTocLoading) return;
+    setState(() => _isTocLoading = true);
+    try {
+      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/toc');
+      final res = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded['success'] == true && decoded['data']?['toc'] is List) {
+          final rawToc = decoded['data']['toc'] as List;
+          if (mounted) {
+            setState(() {
+              _toc = rawToc.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            });
+          }
+        }
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _isTocLoading = false);
+  }
+
+  /// Show Table of Contents modal bottom sheet
+  void _showTocModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _themeBgColor,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          maxChildSize: 0.92,
+          minChildSize: 0.3,
+          builder: (_, scrollCtrl) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.list_rounded, color: AppColors.brand, size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        'உள்ளடக்கம் (TOC)',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _themeTextColor,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: Icon(Icons.close_rounded, color: _themeTextColor),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: _isTocLoading
+                      ? const Center(child: CircularProgressIndicator(color: AppColors.brand))
+                      : _toc.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Text(
+                                  'இந்த புத்தகத்தில் உள்ளடக்கம் கிடைக்கவில்லை.\n(No table of contents found)',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: _themeTextColor.withOpacity(0.6),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              controller: scrollCtrl,
+                              itemCount: _toc.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final chapter = _toc[index];
+                                final chapterTitle = chapter['title']?.toString() ?? 'Chapter ${index + 1}';
+                                final chapterPage = int.tryParse(chapter['page']?.toString() ?? '1') ?? 1;
+                                return ListTile(
+                                  leading: Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.brand.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '$chapterPage',
+                                        style: const TextStyle(
+                                          color: AppColors.brand,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    chapterTitle,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: _themeTextColor,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Page $chapterPage',
+                                    style: TextStyle(
+                                      color: _themeTextColor.withOpacity(0.5),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  trailing: Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    size: 14,
+                                    color: _themeTextColor.withOpacity(0.4),
+                                  ),
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _goToPage(chapterPage);
+                                  },
+                                );
+                              },
+                            ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Color get _themeBgColor {
@@ -798,13 +976,21 @@ class _ReadingPageState extends State<ReadingPage> {
             onPressed: _showBookmarksModal,
           ),
           IconButton(
+            icon: const Icon(Icons.format_list_bulleted_rounded),
+            tooltip: 'Table of Contents (உள்ளடக்கம்)',
+            onPressed: _showTocModal,
+          ),
+          IconButton(
             icon: const Icon(Icons.tune_rounded),
             tooltip: 'Reading Settings',
             onPressed: _showSettingsModal,
           ),
         ],
       ),
-      body: InteractiveViewer(
+      body: Stack(
+        children: [
+          // ── Main scrollable content ──
+          InteractiveViewer(
         scaleEnabled: true,
         panEnabled: true,
         minScale: 0.8,
@@ -889,82 +1075,106 @@ class _ReadingPageState extends State<ReadingPage> {
                         const SizedBox(height: 16),
                         const Divider(),
                         const SizedBox(height: 16),
-                        if (_extractedPageImages.containsKey(_currentPage) &&
-                            _extractedPageImages[_currentPage]!.isNotEmpty) ...[
-                          for (final imgUrl in _extractedPageImages[_currentPage]!)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  _resolveImageUrl(imgUrl),
-                                  fit: BoxFit.contain,
-                                  loadingBuilder: (context, child, progress) {
-                                    if (progress == null) return child;
-                                    return Container(
-                                      height: 180,
-                                      alignment: Alignment.center,
-                                      child: const CircularProgressIndicator(strokeWidth: 2),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const SizedBox.shrink();
-                                  },
-                                ),
-                              ),
-                            ),
-                        ],
                         if (_getPageContent(_currentPage).trim().isNotEmpty)
                           Text(
                             _getPageContent(_currentPage),
                             style: _getAppliedTextStyle(),
+                            textAlign: TextAlign.justify,
                           ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  // Bottom spacer so content is never hidden behind the page controls bar
+                  const SizedBox(height: 120),
                 ],
               ),
             ),
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: _themeBgColor,
-            border: Border(top: BorderSide(color: _themeTextColor.withOpacity(0.1))),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-                color: _currentPage > 1 ? AppColors.brand : Colors.grey,
-                onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
-              ),
-              Expanded(
-                child: Slider(
-                  value: _currentPage.toDouble(),
-                  min: 1,
-                  max: _totalPages.toDouble(),
-                  divisions: _totalPages > 1 ? _totalPages - 1 : 1,
-                  activeColor: AppColors.brand,
-                  inactiveColor: AppColors.brand.withOpacity(0.2),
-                  onChanged: (val) {
-                    _goToPage(val.round());
-                  },
+
+          // ── Page controls: pinned at screen bottom, always above system nav ──
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Builder(
+              builder: (ctx) {
+                // Use viewPadding (not padding) so it works even in immersive mode
+                final bottomInset = MediaQuery.of(ctx).viewPadding.bottom;
+                return Container(
+              padding: EdgeInsets.fromLTRB(8, 8, 8, 12 + bottomInset),
+              decoration: BoxDecoration(
+                color: _themeBgColor.withOpacity(0.97),
+                border: Border(
+                  top: BorderSide(color: _themeTextColor.withOpacity(0.12), width: 1),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, -3),
+                  ),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20),
-                color: _currentPage < _totalPages ? AppColors.brand : Colors.grey,
-                onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // "1 of 1313" — always visible, always above system nav
+                  Text(
+                    '$_currentPage of $_totalPages',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.brand,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
+                        color: _currentPage > 1 ? AppColors.brand : Colors.grey.shade400,
+                        onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      ),
+                      Expanded(
+                        child: SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                            trackHeight: 4,
+                          ),
+                          child: Slider(
+                            value: _currentPage.toDouble(),
+                            min: 1,
+                            max: _totalPages.toDouble(),
+                            divisions: _totalPages > 1 ? _totalPages - 1 : 1,
+                            activeColor: AppColors.brand,
+                            inactiveColor: AppColors.brand.withOpacity(0.15),
+                            onChanged: (val) => _goToPage(val.round()),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20),
+                        color: _currentPage < _totalPages ? AppColors.brand : Colors.grey.shade400,
+                        onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
+            );
+              }, // Builder builder
+            ), // Builder
           ),
-        ),
-      ),
-    );
+        ], // Stack children
+      ), // Stack / body
+    ); // Scaffold
   }
 }

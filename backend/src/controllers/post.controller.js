@@ -73,6 +73,14 @@ const formatPost = (post) => {
     isLiked: Boolean(post.isLiked !== undefined ? post.isLiked : post.isSupported),
     views: post.views || 0,
     hashtags: post.hashtags || '',
+    // Page count for feed badge — how many pages this story/PDF has
+    pageCount: post.pageCount || 0,
+    page_count: post.pageCount || 0,
+    totalPages: post.pageCount || 0,
+    // PDF fields
+    pdf_url: post.pdf_url || post.pdf_path || '',
+    pdfUrl: post.pdf_url || post.pdf_path || '',
+    is_pdf: Boolean(post.is_pdf),
     created_at: post.createdAt || new Date(),
     createdAt: post.createdAt || new Date()
   };
@@ -636,7 +644,11 @@ const createPost = async (req, res, next) => {
       communityImage: finalCommunityImage,
       content: parsedContent,
       cover_image: coverImage,
-      hashtags: hashtags || ''
+      hashtags: hashtags || '',
+      // Page count — number of pages in the story/PDF (sent from client)
+      pageCount: parseInt(req.body.pageCount || req.body.page_count || '0', 10) || parsedContent.length || 0,
+      pdf_url: req.body.pdf_url || req.body.pdfUrl || '',
+      is_pdf: Boolean(req.body.is_pdf || req.body.isPdf),
     });
 
     return res.status(201).json({

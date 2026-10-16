@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const env = require('../config/env');
 const { successResponse, errorResponse } = require('../utils/response.util');
+const { sendOtpEmail, verifyOtpEmail } = require('../services/email.service');
 
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, env.JWT_SECRET, {
@@ -147,10 +148,22 @@ const forgotPassword = async (req, res, next) => {
 
 const sendOtp = async (req, res, next) => {
   try {
-    const { mobileNumber, phone } = req.body;
+    const { email, mobileNumber, phone } = req.body;
+
+    // Email OTP flow
+    if (email) {
+      const cleanEmail = email.toLowerCase().trim();
+      await sendOtpEmail(cleanEmail);
+      return successResponse(res, 200, 'OTP sent to email successfully', { email: cleanEmail });
+    }
+
+    // Mobile fallback (demo)
     const targetMobile = mobileNumber || phone;
-    // For demo/development, OTP is 123456
-    return successResponse(res, 200, 'OTP sent successfully', { otp: '123456' });
+    if (targetMobile) {
+      return successResponse(res, 200, 'OTP sent successfully', { otp: '123456' });
+    }
+
+    return errorResponse(res, 400, 'Please provide an email or mobile number.');
   } catch (error) {
     next(error);
   }
@@ -158,8 +171,22 @@ const sendOtp = async (req, res, next) => {
 
 const verifyOtp = async (req, res, next) => {
   try {
-    const { otp } = req.body;
-    // Accept 123456 or any 6-digit OTP in dev
+    const { otp, email } = req.body;
+
+    if (!otp) {
+      return errorResponse(res, 400, 'OTP is required.');
+    }
+
+    // Email OTP verification
+    if (email) {
+      const result = verifyOtpEmail(email.toLowerCase().trim(), otp);
+      if (!result.valid) {
+        return errorResponse(res, 400, result.message);
+      }
+      return successResponse(res, 200, result.message);
+    }
+
+    // Mobile fallback (demo) - accept any OTP
     return successResponse(res, 200, 'OTP verified successfully');
   } catch (error) {
     next(error);

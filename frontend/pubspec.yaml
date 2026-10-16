@@ -55,6 +55,7 @@ dependencies:
   flutter_local_notifications: ^17.2.1
   google_fonts: ^8.0.2
   archive: ^3.4.10
+  flutter_svg: ^2.0.10+1
 dev_dependencies:
   flutter_test:
     sdk: flutter

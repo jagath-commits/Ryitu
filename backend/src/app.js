@@ -75,6 +75,10 @@ const handleCoverImageRequest = (req, res, next) => {
   const targetPath = path.join(coversDir, filename);
 
   if (fs.existsSync(targetPath)) {
+    // Explicitly set SVG content-type so Flutter's SvgPicture.network() works
+    if (/\.svg$/i.test(filename)) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+    }
     return res.sendFile(targetPath);
   }
 
@@ -105,7 +109,11 @@ app.get('/covers/:filename', handleCoverImageRequest);
 app.use('/uploads', express.static(uploadsDir));
 app.use('/uploads/profile_images', express.static(path.join(uploadsDir, 'profile_images')));
 app.use('/uploads/page_images', express.static(path.join(uploadsDir, 'page_images')));
-app.use('/uploads/covers', express.static(path.join(uploadsDir, 'covers')));
+app.use('/uploads/covers', express.static(path.join(uploadsDir, 'covers'), {
+  setHeaders: (res, filePath) => {
+    if (/\.svg$/i.test(filePath)) res.setHeader('Content-Type', 'image/svg+xml');
+  }
+}));
 app.use('/uploads/pdf', express.static(path.join(uploadsDir, 'pdf')));
 app.use('/uploads/documents', express.static(path.join(uploadsDir, 'documents')));
 

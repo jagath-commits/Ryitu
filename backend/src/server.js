@@ -6,11 +6,12 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    const server = app.listen(env.PORT, () => {
+    const server = app.listen(env.PORT, '0.0.0.0', () => {
       console.log(`===============================================`);
       console.log(` PDF Book Reader API Server is running!`);
-      console.log(` URL: http://localhost:${env.PORT}`);
-      console.log(` Health Check: http://localhost:${env.PORT}/api/health`);
+      console.log(` Local URL:   http://localhost:${env.PORT}`);
+      console.log(` Network URL: http://192.168.29.182:${env.PORT} (Mobile Testing)`);
+      console.log(` Health:      http://localhost:${env.PORT}/api/health`);
       console.log(` Environment: ${env.NODE_ENV}`);
       console.log(`===============================================`);
     });

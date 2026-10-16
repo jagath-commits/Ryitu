@@ -15,6 +15,7 @@ router.use('/:bookId/progress', progressRoutes);
 // Book CRUD routes
 router.get('/', bookController.getBooks);
 router.get('/:id', bookController.getBookById);
+router.get('/:id/toc', bookController.getTableOfContents);
 router.get('/:id/page/:pageNumber', bookController.getBookPageText);
 router.post('/upload', uploadPdf, bookController.uploadBook);
 router.put('/:id', bookController.updateBook);

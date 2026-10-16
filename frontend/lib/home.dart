@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:dmk_project/api_config.dart';
 import 'package:dmk_project/app_bottom_nav.dart';
 import 'package:dmk_project/app_theme.dart';
@@ -956,66 +957,144 @@ class PostContainer extends StatelessWidget {
 
         const SizedBox(height: 14),
 
-        // Vertical Framed Post Image Centerpiece with rounded corners
+        // Vertical Framed Post Image Centerpiece — full width, taller portrait
         GestureDetector(
           onTap: () => _openReader(context, postId, username, profileImage, title, commId),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             child: AspectRatio(
-              aspectRatio: 3 / 4, // Vertical portrait format matching screenshot
-              child: hasCover
-                  ? CachedNetworkImage(
-                      imageUrl: _fullUrl(coverRaw),
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: brandColor.withOpacity(0.06),
-                        child: Center(
-                          child: CircularProgressIndicator(color: brandColor),
+              aspectRatio: 9 / 14, // Taller portrait (like a book cover)
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Cover image or gradient fallback — SVG & raster both supported
+                  hasCover
+                      ? Builder(builder: (bCtx) {
+                          final coverUrl = _fullUrl(coverRaw);
+                          final isSvg = coverUrl.toLowerCase().endsWith('.svg') ||
+                              (coverRaw ?? '').toLowerCase().endsWith('.svg');
+                          if (isSvg) {
+                            return SvgPicture.network(
+                              coverUrl,
+                              fit: BoxFit.cover,
+                              placeholderBuilder: (_) => Container(
+                                color: brandColor.withOpacity(0.08),
+                                child: Center(child: CircularProgressIndicator(color: brandColor)),
+                              ),
+                            );
+                          }
+                          return CachedNetworkImage(
+                            imageUrl: coverUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: brandColor.withOpacity(0.06),
+                              child: Center(
+                                child: CircularProgressIndicator(color: brandColor),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [brandColor, const Color(0xFF041CA1)],
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(Icons.auto_stories_outlined, size: 64,
+                                    color: Colors.white.withOpacity(0.8)),
+                              ),
+                            ),
+                          );
+                        })
+                      : Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                brandColor,
+                                const Color(0xFF041CA1),
+                              ],
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 64),
+                              const SizedBox(height: 20),
+                              Text(
+                                title,
+                                textAlign: TextAlign.center,
+                                maxLines: 5,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: brandColor.withOpacity(0.06),
-                        child: Center(
-                          child: Icon(Icons.auto_stories_outlined, size: 48, color: brandColor),
-                        ),
-                      ),
-                    )
-                  : Container(
+                  // Dark gradient overlay at bottom for readability
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 100,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
                           colors: [
-                            brandColor,
-                            const Color(0xFF041CA1),
+                            Colors.black.withOpacity(0.6),
+                            Colors.transparent,
                           ],
                         ),
                       ),
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 52),
-                          const SizedBox(height: 16),
-                          Text(
-                            title,
-                            textAlign: TextAlign.center,
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.outfit(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
+                  ),
+                  // Page count badge overlay on portrait cover
+                  Builder(builder: (bCtx) {
+                    final rawCount = post['pageCount'] ?? post['page_count'] ?? post['totalPages'] ?? '';
+                    final pageCount = int.tryParse(rawCount.toString());
+                    if (pageCount == null || pageCount <= 0) return const SizedBox.shrink();
+                    return Positioned(
+                      bottom: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.65),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.menu_book_rounded, color: Colors.white, size: 13),
+                            const SizedBox(width: 5),
+                            Text(
+                              '$pageCount Pages',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
         ),
-
         const SizedBox(height: 14),
 
         // Centered Bold Title (Tamil font supported)
@@ -1458,7 +1537,8 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
     if (idx != null && idx >= 0 && idx < TextAlign.values.length) {
       return TextAlign.values[idx];
     }
-    return TextAlign.left;
+    // Default: justify all content text for clean reading experience
+    return TextAlign.justify;
   }
 
   void _showSettingsBottomSheet(BuildContext context) {

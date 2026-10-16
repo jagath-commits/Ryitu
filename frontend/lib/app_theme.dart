@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Shared design tokens for a consistent, professional UI across the app.
 abstract final class AppColors {
@@ -30,33 +29,30 @@ abstract final class AppTheme {
       onSurface: AppColors.textPrimary,
     );
 
-    final meriendaTextTheme = GoogleFonts.meriendaTextTheme(
-      ThemeData.light().textTheme,
-    );
-
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.scaffold,
-      fontFamily: GoogleFonts.merienda().fontFamily,
-      textTheme: meriendaTextTheme,
-      appBarTheme: AppBarTheme(
+      // Use Android system font (Roboto) — no external font package needed
+      fontFamily: 'Roboto',
+      appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         centerTitle: true,
         scrolledUnderElevation: 0.5,
-        systemOverlayStyle: const SystemUiOverlayStyle(
+        systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.dark,
         ),
-        titleTextStyle: GoogleFonts.merienda(
+        titleTextStyle: TextStyle(
+          fontFamily: 'Roboto',
           color: AppColors.textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
         ),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 22),
+        iconTheme: IconThemeData(color: AppColors.textPrimary, size: 22),
       ),
       cardTheme: CardThemeData(
         color: AppColors.surface,
@@ -83,7 +79,8 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.sm),
           borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
         ),
-        hintStyle: GoogleFonts.merienda(
+        hintStyle: const TextStyle(
+          fontFamily: 'Roboto',
           color: AppColors.textSecondary,
           fontWeight: FontWeight.w500,
           fontSize: 14,
@@ -98,7 +95,8 @@ abstract final class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
-          textStyle: GoogleFonts.merienda(
+          textStyle: const TextStyle(
+            fontFamily: 'Roboto',
             fontWeight: FontWeight.w700,
             fontSize: 15,
           ),
@@ -107,7 +105,10 @@ abstract final class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.brand,
-          textStyle: GoogleFonts.merienda(fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(
+            fontFamily: 'Roboto',
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -126,7 +127,11 @@ abstract final class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.chipBg,
         selectedColor: AppColors.brand,
-        labelStyle: GoogleFonts.merienda(fontWeight: FontWeight.w600, fontSize: 13),
+        labelStyle: const TextStyle(
+          fontFamily: 'Roboto',
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
@@ -178,6 +183,7 @@ Widget appSearchField({
       controller: controller,
       onChanged: onChanged,
       style: const TextStyle(
+        fontFamily: 'Roboto',
         fontWeight: FontWeight.w600,
         fontSize: 14,
         color: AppColors.textPrimary,
@@ -218,6 +224,7 @@ Widget appEmptyState({
             title,
             textAlign: TextAlign.center,
             style: const TextStyle(
+              fontFamily: 'Roboto',
               fontSize: 17,
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
@@ -229,6 +236,7 @@ Widget appEmptyState({
               subtitle,
               textAlign: TextAlign.center,
               style: const TextStyle(
+                fontFamily: 'Roboto',
                 fontSize: 14,
                 color: AppColors.textSecondary,
                 height: 1.4,

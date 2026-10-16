@@ -32,8 +32,16 @@ Future<void> main() async {
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
       statusBarBrightness: Brightness.light,
+      // Edge-to-edge: nav bar is transparent, app draws behind it
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarContrastEnforced: false,
     ),
   );
+
+  // Edge-to-edge mode: app draws behind system nav bar, nav buttons hidden/gesture-only
+  // SafeArea in each screen handles keeping content above the gesture area
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   // Safely retrieve cached token
   String? token;

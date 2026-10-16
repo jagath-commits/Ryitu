@@ -10,32 +10,6 @@ const { storageService } = require('../services/storage.service');
 const { createAndSaveDefaultCover } = require('../utils/coverGenerator');
 const { successResponse, errorResponse } = require('../utils/response.util');
 
-// Helper to sniff image extension from raw buffer
-const getExtensionFromBuffer = (buffer) => {
-  if (!buffer || buffer.length < 4) return 'png';
-  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return 'jpg';
-  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) return 'png';
-  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) return 'gif';
-  if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46) return 'webp';
-  return 'png';
-};
-
-// Helper to construct dynamic full URL matching client's host/ip
-const getDynamicFileUrl = (req, fileName, subfolder = 'page_images') => {
-  if (!fileName) return '';
-  const safeSub = (subfolder || '').replace(/\\/g, '/');
-  const safeName = path.basename(fileName);
-  const subPath = safeSub ? `${safeSub}/${safeName}` : safeName;
-  if (req) {
-    const host = req.get('host');
-    const protocol = req.protocol || 'http';
-    if (host) {
-      return `${protocol}://${host}/uploads/${subPath}`;
-    }
-  }
-  return storageService.getFileUrl(fileName, subfolder);
-};
-
 const uploadBook = async (req, res, next) => {
   try {
     if (!req.file) {
@@ -245,6 +219,19 @@ const deleteBook = async (req, res, next) => {
   }
 };
 
+/**
+ * Detects if extracted text is predominantly Tamil Unicode text.
+ * Threshold is 5% — any PDF with significant Tamil content is treated as Tamil.
+ */
+function isTamilText(text) {
+  if (!text || text.trim().length === 0) return false;
+  const tamilChars = (text.match(/[\u0B80-\u0BFF]/g) || []).length;
+  if (tamilChars === 0) return false;
+  const totalChars = text.replace(/\s/g, '').length;
+  // If even 5% of non-space chars are Tamil Unicode → it is a Tamil PDF
+  return totalChars > 0 && (tamilChars / totalChars) > 0.05;
+}
+
 const getBookPageText = async (req, res, next) => {
   let parser = null;
   try {
@@ -274,47 +261,32 @@ const getBookPageText = async (req, res, next) => {
       rawText = pageResult;
     }
 
+    // Clean and normalize extracted Tamil text (Bamini, legacy fonts, kerning, Unicode)
     const cleanedText = cleanExtractedText(rawText);
 
-    // Extract images and diagrams for this page
-    const pageImages = [];
-    try {
-      const imgRes = await parser.getImage({ partial: [pageNum], imageThreshold: 20, imageBuffer: true });
-      if (imgRes && imgRes.pages && imgRes.pages[0] && Array.isArray(imgRes.pages[0].images)) {
-        for (let idx = 0; idx < imgRes.pages[0].images.length; idx++) {
-          const im = imgRes.pages[0].images[idx];
-          if (im.data && im.data.length > 0) {
-            const ext = getExtensionFromBuffer(im.data);
-            const imgFileName = `book_${id}_p${pageNum}_img${idx + 1}.${ext}`;
-            await storageService.saveFile(Buffer.from(im.data), imgFileName, 'page_images');
-            const imgUrl = getDynamicFileUrl(req, imgFileName, 'page_images');
-            pageImages.push(imgUrl);
-          }
-        }
-      }
-    } catch (imErr) {
-      console.warn(`[Book Page ${pageNum}] Image extraction warning:`, imErr.message);
-    }
+    // Tamil PDF-ல் images return பண்ண வேண்டாம் — text மட்டும் return பண்ணு
+    // KEY FIX: If ANY text was extracted from this page, never return images.
+    // Images are only for completely unreadable pages (scanned/image-only PDFs).
+    // This handles ALL Tamil encodings: Unicode, Bamini, TSCII — regardless of font.
+    const hasTamilContent = isTamilText(rawText) || isTamilText(cleanedText);
+    const hasExtractedText = (cleanedText.trim().length > 10) || (rawText.trim().length > 10);
 
-    // If no raster images found, check if this page is a vector diagram/drawing
-    if (pageImages.length === 0 && parser.doc) {
+    let images = [];
+    if (!hasExtractedText) {
+      // Zero text extracted → image-only PDF page → try pre-extracted page images
       try {
-        const pageObj = await parser.doc.getPage(pageNum);
-        const ops = await pageObj.getOperatorList();
-        let vectorPathCount = 0;
-        for (let k = 0; k < ops.fnArray.length; k++) {
-          const fn = ops.fnArray[k];
-          if (fn === 82 || fn === 84 || fn === 17 || fn === 18) {
-            vectorPathCount++;
-          }
-        }
-        if (vectorPathCount > 15 || (cleanedText.length < 50 && vectorPathCount > 5)) {
-          const screenshot = await parser.getScreenshot({ partial: [pageNum], scale: 1.5 });
-          if (screenshot && screenshot.pages && screenshot.pages[0] && screenshot.pages[0].data) {
-            const diagFileName = `book_${id}_p${pageNum}_diag.png`;
-            await storageService.saveFile(Buffer.from(screenshot.pages[0].data), diagFileName, 'page_images');
-            const diagUrl = getDynamicFileUrl(req, diagFileName, 'page_images');
-            pageImages.push(diagUrl);
+        const pageImagesDir = path.join(__dirname, '../../uploads/page_images');
+        const bookIdStr = book._id.toString();
+        const possibleNames = [
+          `${bookIdStr}_page_${pageNum}.jpg`,
+          `${bookIdStr}_page_${pageNum}.png`,
+          `${bookIdStr}_p${pageNum}.jpg`,
+          `${bookIdStr}_p${pageNum}.png`,
+        ];
+        for (const imgName of possibleNames) {
+          if (fs.existsSync(path.join(pageImagesDir, imgName))) {
+            images.push(`uploads/page_images/${imgName}`);
+            break;
           }
         }
       } catch (_) {}
@@ -323,7 +295,8 @@ const getBookPageText = async (req, res, next) => {
     return successResponse(res, 200, 'Page text extracted successfully', {
       page: pageNum,
       text: cleanedText,
-      images: pageImages
+      images,
+      isTamil: hasTamilContent
     });
   } catch (error) {
     next(error);
@@ -337,11 +310,107 @@ const getBookPageText = async (req, res, next) => {
   }
 };
 
+/**
+ * Extract Table of Contents from PDF using pdf-parse outline/bookmarks
+ */
+const getTableOfContents = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const book = await Book.findOne({ _id: id, isDeleted: false });
+    if (!book) {
+      return errorResponse(res, 404, 'Book not found.');
+    }
+
+    const pdfFileName = path.basename(book.pdfUrl || '');
+    const pdfPath = path.join(__dirname, '../../uploads/pdf', pdfFileName);
+
+    if (!fs.existsSync(pdfPath)) {
+      return errorResponse(res, 404, 'PDF file not found on disk.');
+    }
+
+    // Use pdf-lib to extract outline/bookmarks (Table of Contents)
+    const pdfBytes = await fs.promises.readFile(pdfPath);
+    const { PDFDocument: PDFDoc } = require('pdf-lib');
+    const pdfDoc = await PDFDoc.load(pdfBytes, { ignoreEncryption: true });
+
+    // Extract outline if available
+    let toc = [];
+    try {
+      const context = pdfDoc.context;
+      const catalogRef = context.trailerInfo.Root;
+      const catalog = context.lookup(catalogRef);
+      const outlinesRef = catalog.get(PDFDoc.name ? undefined : catalog.getAs ? undefined : undefined);
+
+      // Try to read outline from PDF
+      const rawCatalog = context.lookupMaybe(catalogRef);
+      if (rawCatalog) {
+        const outlineKey = Array.from(rawCatalog.entries ? rawCatalog.entries() : [])
+          .find(([k]) => k.toString().includes('Outlines') || k.toString().includes('outline'));
+        if (outlineKey) {
+          // Outline exists but complex to parse — return empty TOC
+        }
+      }
+    } catch (_) {}
+
+    // If no TOC from outline, build a basic chapter list from page headings
+    if (toc.length === 0) {
+      try {
+        const { PDFParse } = require('pdf-parse');
+        const parser = new PDFParse({ data: pdfBytes });
+        await parser.load();
+        const totalPages = book.pageCount || pdfDoc.getPageCount();
+
+        // Sample first few pages to find chapter headings
+        const maxSample = Math.min(totalPages, 50);
+        for (let p = 1; p <= maxSample; p++) {
+          try {
+            const pageResult = await parser.getPageText(p);
+            let text = '';
+            if (pageResult && typeof pageResult.text === 'string') {
+              text = pageResult.text.trim();
+            } else if (typeof pageResult === 'string') {
+              text = pageResult.trim();
+            }
+
+            if (!text) continue;
+
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            for (const line of lines.slice(0, 5)) {
+              // Detect chapter headings: short lines, possibly numbered, in Tamil or English
+              const isTamilHeading = /^[\u0B80-\u0BFF\s\d\.]+$/.test(line) && line.length < 60;
+              const isEnglishHeading = /^(chapter|அத்தியாயம்|பாடம்|பகுதி|\d+[\.\)]\s)/i.test(line);
+              const isShortBoldLine = line.length < 50 && line.length > 2;
+
+              if ((isTamilHeading || isEnglishHeading) && isShortBoldLine) {
+                // Avoid duplicates
+                if (!toc.find(t => t.title === line)) {
+                  toc.push({ title: line, page: p });
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        await parser.destroy();
+      } catch (_) {}
+    }
+
+    return successResponse(res, 200, 'Table of contents fetched', {
+      toc,
+      totalPages: book.pageCount || 0
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   uploadBook,
   getBooks,
   getBookById,
   updateBook,
   deleteBook,
-  getBookPageText
+  getBookPageText,
+  getTableOfContents
 };

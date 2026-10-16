@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 
 /// Safe branding widgets — no asset files required.
 class AppLogo extends StatelessWidget {
@@ -25,7 +25,8 @@ class AppLogo extends StatelessWidget {
         SizedBox(height: height * 0.1),
         Text(
           'Ryitu',
-          style: GoogleFonts.merienda(
+          style: TextStyle(
+            fontFamily: 'Roboto',
             fontSize: fontSize,
             fontWeight: FontWeight.w900,
             color: const Color(0xFF0729E8),
