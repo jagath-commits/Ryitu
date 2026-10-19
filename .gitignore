@@ -68,3 +68,7 @@ frontend/.symlinks/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Android heap dumps
+*.hprof
+android/java_pid*.hprof
