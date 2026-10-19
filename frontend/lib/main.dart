@@ -1,6 +1,5 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:app_links/app_links.dart';
 import 'package:dmk_project/app_theme.dart';
 import 'package:dmk_project/home.dart';
@@ -9,14 +8,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:dmk_project/notification_post_page.dart';
 import 'package:dmk_project/community_page.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,38 +49,6 @@ Future<void> main() async {
 
   // 🚀 CRITICAL FIX: Run app IMMEDIATELY so UI mounts without waiting for native/permission delays!
   runApp(MyApp(token: token));
-
-  // 🚀 Initialize Firebase & notification services asynchronously in background
-  _initServicesAsync();
-}
-
-Future<void> _initServicesAsync() async {
-  try {
-    await Firebase.initializeApp();
-    debugPrint("Firebase initialized successfully");
-
-    // Local notifications initialization
-    try {
-      const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
-      const initSettings = InitializationSettings(android: androidSettings);
-      await flutterLocalNotificationsPlugin.initialize(initSettings);
-    } catch (e) {
-      debugPrint("Local notifications init skipped: $e");
-    }
-
-    // Notification permission request (safe and non-blocking after UI is rendered)
-    try {
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-    } catch (e) {
-      debugPrint("FCM requestPermission skipped: $e");
-    }
-  } catch (e) {
-    debugPrint("Firebase init error: $e");
-  }
 }
 
 class MyApp extends StatefulWidget {
@@ -105,84 +68,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
 
-    _setupFirebaseMessaging();
     WidgetsBinding.instance.addPostFrameCallback((_) => _initDeepLinks());
-  }
-
-  void _setupFirebaseMessaging() {
-    try {
-      FirebaseMessaging.instance.getToken().then((token) {
-        debugPrint("FCM TOKEN: $token");
-      }).catchError((e) {
-        debugPrint("FCM getToken error: $e");
-      });
-    } catch (e) {
-      debugPrint("FCM token exception: $e");
-    }
-
-    try {
-      FirebaseMessaging.onMessageOpenedApp.listen((message) async {
-        debugPrint("FULL DATA = ${message.data}");
-        final postId = message.data['postId'];
-        debugPrint("POST ID = $postId");
-
-        if (postId != null) {
-          navigatorKey.currentState?.push(
-            MaterialPageRoute(
-              builder: (_) => NotificationPostPage(postId: postId),
-            ),
-          );
-        }
-      });
-    } catch (e) {
-      debugPrint("onMessageOpenedApp error: $e");
-    }
-
-    try {
-      FirebaseMessaging.instance.getInitialMessage().then((message) {
-        if (message != null) {
-          final postId = message.data['postId'];
-
-          if (postId != null) {
-            navigatorKey.currentState?.push(
-              MaterialPageRoute(
-                builder: (_) => NotificationPostPage(postId: postId),
-              ),
-            );
-          }
-        }
-      }).catchError((e) {
-        debugPrint("getInitialMessage error: $e");
-      });
-    } catch (e) {
-      debugPrint("getInitialMessage exception: $e");
-    }
-
-    try {
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint("Notification Received");
-
-        try {
-          flutterLocalNotificationsPlugin.show(
-            0,
-            message.notification?.title ?? '',
-            message.notification?.body ?? '',
-            const NotificationDetails(
-              android: AndroidNotificationDetails(
-                'default_channel',
-                'Default Notifications',
-                importance: Importance.max,
-                priority: Priority.high,
-              ),
-            ),
-          );
-        } catch (e) {
-          debugPrint("Error showing local notification: $e");
-        }
-      });
-    } catch (e) {
-      debugPrint("onMessage error: $e");
-    }
   }
 
   Future<void> _initDeepLinks() async {
@@ -210,7 +96,7 @@ class _MyAppState extends State<MyApp> {
     String? targetType;
     String? targetId;
 
-    if (scheme == 'ryitu') {
+    if (scheme == 'Ritpen') {
       if (host == 'community' || segments.contains('community')) {
         targetType = 'community';
         if (segments.isNotEmpty && segments.last != 'community') {

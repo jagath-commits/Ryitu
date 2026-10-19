@@ -1,4 +1,4 @@
-import 'package:dmk_project/app_theme.dart';
+﻿import 'package:dmk_project/app_theme.dart';
 import 'package:flutter/material.dart';
 
 Future<String?> showCategorySelectionBottomSheet(BuildContext context) async {
@@ -49,7 +49,7 @@ Future<String?> showCategorySelectionBottomSheet(BuildContext context) async {
               runSpacing: 12,
               alignment: WrapAlignment.center,
               children: [
-                _buildCategoryOption(context, '4', 'Ryitu', Icons.library_books_rounded),
+                _buildCategoryOption(context, '4', 'Ritpen', Icons.library_books_rounded),
               ],
             ),
           ],

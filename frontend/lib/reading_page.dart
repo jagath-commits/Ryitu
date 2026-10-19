@@ -63,10 +63,6 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     super.initState();
     _currentPage = widget.initialPage > 0 ? widget.initialPage : 1;
     _totalPages = widget.totalPages > 0 ? widget.totalPages : 1;
-    // Apply immersive mode after the first frame to ensure it takes effect
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    });
     WidgetsBinding.instance.addObserver(this);
     _loadUserAndData();
   }
@@ -74,22 +70,18 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Restore edge-to-edge when leaving the reading page
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
-  // Re-apply immersive mode whenever app resumes (handles swipe-reveal auto-restore)
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    }
-  }
+  void didChangeAppLifecycleState(AppLifecycleState state) {}
 
   Future<void> _loadUserAndData() async {
     final prefs = await SharedPreferences.getInstance();
     _userId = prefs.getString('user_id') ?? 'USR00000001';
+
+    // Restore saved reader settings
+    await _loadReaderSettings(prefs);
 
     await _fetchProgress();
     await _fetchBookmarks();
@@ -101,16 +93,50 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     }
   }
 
+  /// Load persisted reader settings (theme, font size, font style, font color)
+  Future<void> _loadReaderSettings(SharedPreferences prefs) async {
+    final themeIndex = prefs.getInt('reader_theme') ?? 0;
+    final fontSize = prefs.getDouble('reader_font_size') ?? 18.0;
+    final fontStyle = prefs.getString('reader_font_style') ?? 'Default';
+    final fontColorValue =
+        prefs.getInt('reader_font_color') ?? const Color(0xFF1A1A1A).toARGB32();
+
+    if (mounted) {
+      setState(() {
+        _theme = ReaderTheme
+            .values[themeIndex.clamp(0, ReaderTheme.values.length - 1)];
+        _fontSize = fontSize.clamp(14.0, 28.0);
+        _fontStyle = fontStyle;
+        _fontColor = Color(fontColorValue);
+      });
+    }
+  }
+
+  /// Persist reader settings to SharedPreferences
+  Future<void> _saveReaderSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('reader_theme', _theme.index);
+    await prefs.setDouble('reader_font_size', _fontSize);
+    await prefs.setString('reader_font_style', _fontStyle);
+    await prefs.setInt('reader_font_color', _fontColor.toARGB32());
+  }
+
   Future<void> _fetchProgress() async {
     try {
-      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/progress?userId=$_userId');
+      final uri = Uri.parse(
+        '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/progress?userId=$_userId',
+      );
       final res = await http.get(uri).timeout(const Duration(seconds: 3));
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
-        if (decoded['success'] == true && decoded['data']?['progress'] != null) {
+        if (decoded['success'] == true &&
+            decoded['data']?['progress'] != null) {
           final prog = decoded['data']['progress'];
-          final savedPage = int.tryParse(prog['currentPage']?.toString() ?? '1') ?? 1;
-          final total = int.tryParse(prog['totalPages']?.toString() ?? '1') ?? _totalPages;
+          final savedPage =
+              int.tryParse(prog['currentPage']?.toString() ?? '1') ?? 1;
+          final total =
+              int.tryParse(prog['totalPages']?.toString() ?? '1') ??
+              _totalPages;
           if (mounted) {
             setState(() {
               _currentPage = savedPage.clamp(1, total);
@@ -124,31 +150,42 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
 
   Future<void> _saveProgress() async {
     try {
-      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/progress');
-      await http.put(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userId': _userId,
-          'currentPage': _currentPage,
-          'totalPages': _totalPages,
-        }),
-      ).timeout(const Duration(seconds: 3));
+      final uri = Uri.parse(
+        '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/progress',
+      );
+      await http
+          .put(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': _userId,
+              'currentPage': _currentPage,
+              'totalPages': _totalPages,
+            }),
+          )
+          .timeout(const Duration(seconds: 3));
     } catch (_) {}
   }
 
   Future<void> _fetchBookmarks() async {
     try {
-      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/bookmarks?userId=$_userId');
+      final uri = Uri.parse(
+        '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/bookmarks?userId=$_userId',
+      );
       final res = await http.get(uri).timeout(const Duration(seconds: 3));
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
-        if (decoded['success'] == true && decoded['data']?['bookmarks'] is List) {
-          final list = List<Map<String, dynamic>>.from(decoded['data']['bookmarks']);
+        if (decoded['success'] == true &&
+            decoded['data']?['bookmarks'] is List) {
+          final list = List<Map<String, dynamic>>.from(
+            decoded['data']['bookmarks'],
+          );
           if (mounted) {
             setState(() {
               _bookmarks = list;
-              _isBookmarked = _bookmarks.any((b) => b['pageNumber'] == _currentPage);
+              _isBookmarked = _bookmarks.any(
+                (b) => b['pageNumber'] == _currentPage,
+              );
             });
           }
         }
@@ -167,7 +204,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       final bookmarkId = existing['_id'];
       try {
         await http.delete(
-          Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/bookmarks/$bookmarkId?userId=$_userId'),
+          Uri.parse(
+            '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/bookmarks/$bookmarkId?userId=$_userId',
+          ),
         );
         setState(() {
           _bookmarks.removeWhere((b) => b['_id'] == bookmarkId);
@@ -213,7 +252,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   Future<void> _fetchPageContent(int page) async {
     if (_extractedPageTexts.containsKey(page)) return;
     try {
-      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/page/$page');
+      final uri = Uri.parse(
+        '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/page/$page',
+      );
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
@@ -228,7 +269,10 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
           if (!isTamil && text.isEmpty) {
             final rawImages = decoded['data']['images'];
             if (rawImages is List) {
-              images = rawImages.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+              images = rawImages
+                  .map((e) => e.toString())
+                  .where((e) => e.isNotEmpty)
+                  .toList();
             }
           }
 
@@ -241,7 +285,8 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
               if (images.isNotEmpty) {
                 _extractedPageImages[page] = images;
               }
-              if (RegExp(r'[\u0B80-\u0BFF]').hasMatch(text) && _fontStyle == 'Default') {
+              if (RegExp(r'[\u0B80-\u0BFF]').hasMatch(text) &&
+                  _fontStyle == 'Default') {
                 _fontStyle = 'Mukta Malar';
               }
             });
@@ -266,7 +311,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     if (_isTocLoading) return;
     setState(() => _isTocLoading = true);
     try {
-      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/toc');
+      final uri = Uri.parse(
+        '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/toc',
+      );
       final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
@@ -274,7 +321,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
           final rawToc = decoded['data']['toc'] as List;
           if (mounted) {
             setState(() {
-              _toc = rawToc.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+              _toc = rawToc
+                  .map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList();
             });
           }
         }
@@ -305,7 +354,11 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Row(
                     children: [
-                      Icon(Icons.list_rounded, color: AppColors.brand, size: 24),
+                      Icon(
+                        Icons.list_rounded,
+                        color: AppColors.brand,
+                        size: 24,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'உள்ளடக்கம் (TOC)',
@@ -326,75 +379,85 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                 const Divider(height: 1),
                 Expanded(
                   child: _isTocLoading
-                      ? const Center(child: CircularProgressIndicator(color: AppColors.brand))
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.brand,
+                          ),
+                        )
                       : _toc.isEmpty
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(32),
-                                child: Text(
-                                  'இந்த புத்தகத்தில் உள்ளடக்கம் கிடைக்கவில்லை.\n(No table of contents found)',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: _themeTextColor.withOpacity(0.6),
-                                    fontSize: 14,
-                                  ),
-                                ),
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Text(
+                              'இந்த புத்தகத்தில் உள்ளடக்கம் கிடைக்கவில்லை.\n(No table of contents found)',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _themeTextColor.withOpacity(0.6),
+                                fontSize: 14,
                               ),
-                            )
-                          : ListView.separated(
-                              controller: scrollCtrl,
-                              itemCount: _toc.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
-                              itemBuilder: (_, index) {
-                                final chapter = _toc[index];
-                                final chapterTitle = chapter['title']?.toString() ?? 'Chapter ${index + 1}';
-                                final chapterPage = int.tryParse(chapter['page']?.toString() ?? '1') ?? 1;
-                                return ListTile(
-                                  leading: Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.brand.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        '$chapterPage',
-                                        style: const TextStyle(
-                                          color: AppColors.brand,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  title: Text(
-                                    chapterTitle,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: _themeTextColor,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    'Page $chapterPage',
-                                    style: TextStyle(
-                                      color: _themeTextColor.withOpacity(0.5),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          controller: scrollCtrl,
+                          itemCount: _toc.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, index) {
+                            final chapter = _toc[index];
+                            final chapterTitle =
+                                chapter['title']?.toString() ??
+                                'Chapter ${index + 1}';
+                            final chapterPage =
+                                int.tryParse(
+                                  chapter['page']?.toString() ?? '1',
+                                ) ??
+                                1;
+                            return ListTile(
+                              leading: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: AppColors.brand.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '$chapterPage',
+                                    style: const TextStyle(
+                                      color: AppColors.brand,
+                                      fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
                                   ),
-                                  trailing: Icon(
-                                    Icons.arrow_forward_ios_rounded,
-                                    size: 14,
-                                    color: _themeTextColor.withOpacity(0.4),
-                                  ),
-                                  onTap: () {
-                                    Navigator.pop(ctx);
-                                    _goToPage(chapterPage);
-                                  },
-                                );
+                                ),
+                              ),
+                              title: Text(
+                                chapterTitle,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: _themeTextColor,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: Text(
+                                'Page $chapterPage',
+                                style: TextStyle(
+                                  color: _themeTextColor.withOpacity(0.5),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              trailing: Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
+                                color: _themeTextColor.withOpacity(0.4),
+                              ),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                _goToPage(chapterPage);
                               },
-                            ),
+                            );
+                          },
+                        ),
                 ),
               ],
             );
@@ -466,18 +529,47 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   }
 
   TextStyle _getAppliedTextStyle() {
+    final pageText = _getPageContent(_currentPage);
+    final hasTamil = RegExp(r'[\u0B80-\u0BFF]').hasMatch(pageText);
+
     TextStyle style = TextStyle(
       fontSize: _fontSize,
       color: _themeTextColor,
-      height: 1.6,
-      letterSpacing: 0.2,
+      height: 1.7, // Slightly more line height for Tamil readability
+      letterSpacing: hasTamil
+          ? 0.0
+          : 0.2, // No letter spacing for Tamil (breaks syllables)
+      wordSpacing: hasTamil
+          ? 2.0
+          : 0.0, // Word spacing helps Tamil word clarity
       fontFamilyFallback: const ['Noto Sans Tamil', 'Mukta Malar', 'Roboto'],
     );
 
-    final pageText = _getPageContent(_currentPage);
-    final hasTamil = RegExp(r'[\u0B80-\u0BFF]').hasMatch(pageText);
-    if (hasTamil && (_fontStyle == 'Default' || _fontStyle == 'Sans' || _fontStyle == 'Sans Serif')) {
-      return GoogleFonts.notoSansTamil(textStyle: style);
+    // For Tamil text: always use a Tamil-capable font unless user explicitly picked one
+    const tamilCapableFonts = {
+      'Mukta Malar',
+      'Hind Madurai',
+      'Pavanam',
+      'Arima',
+      'Kavivanar',
+      'Catamaran',
+      'Baloo 2',
+      'Tiro Tamil',
+    };
+    if (hasTamil) {
+      if (_fontStyle == 'Default' ||
+          _fontStyle == 'Sans' ||
+          _fontStyle == 'Sans Serif' ||
+          _fontStyle == 'Serif' ||
+          _fontStyle == 'Monospace') {
+        return GoogleFonts.notoSansTamil(textStyle: style);
+      }
+      if (tamilCapableFonts.contains(_fontStyle)) {
+        try {
+          return GoogleFonts.getFont(_fontStyle, textStyle: style);
+        } catch (_) {}
+        return GoogleFonts.notoSansTamil(textStyle: style);
+      }
     }
 
     switch (_fontStyle) {
@@ -503,7 +595,8 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     if (_extractedPageTexts.containsKey(page)) {
       return _extractedPageTexts[page]!;
     }
-    if (_extractedPageImages.containsKey(page) && _extractedPageImages[page]!.isNotEmpty) {
+    if (_extractedPageImages.containsKey(page) &&
+        _extractedPageImages[page]!.isNotEmpty) {
       return '';
     }
     _fetchPageContent(page);
@@ -526,7 +619,11 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.bookmark_rounded, color: AppColors.brand, size: 24),
+                  const Icon(
+                    Icons.bookmark_rounded,
+                    color: AppColors.brand,
+                    size: 24,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Bookmarks (${_bookmarks.length})',
@@ -585,20 +682,29 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                         ),
                         subtitle: Text(
                           note,
-                          style: TextStyle(color: _themeTextColor.withOpacity(0.7)),
+                          style: TextStyle(
+                            color: _themeTextColor.withOpacity(0.7),
+                          ),
                         ),
                         trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                          ),
                           onPressed: () async {
                             Navigator.pop(ctx);
                             final bmId = bm['_id'];
                             if (bmId != null) {
                               await http.delete(
-                                Uri.parse('${ApiConfig.apiBaseUrl}/books/${widget.bookId}/bookmarks/$bmId?userId=$_userId'),
+                                Uri.parse(
+                                  '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/bookmarks/$bmId?userId=$_userId',
+                                ),
                               );
                               setState(() {
                                 _bookmarks.removeAt(index);
-                                _isBookmarked = _bookmarks.any((b) => b['pageNumber'] == _currentPage);
+                                _isBookmarked = _bookmarks.any(
+                                  (b) => b['pageNumber'] == _currentPage,
+                                );
                               });
                             }
                           },
@@ -649,7 +755,11 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                     const SizedBox(height: 18),
                     Row(
                       children: [
-                        const Icon(Icons.tune_rounded, color: AppColors.brand, size: 22),
+                        const Icon(
+                          Icons.tune_rounded,
+                          color: AppColors.brand,
+                          size: 22,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Reading Settings',
@@ -676,43 +786,47 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: [
-                        'Default',
-                        'Roboto',
-                        'Lora',
-                        'Playfair Display',
-                        'Mukta Malar',
-                        'Hind Madurai',
-                        'Pavanam',
-                        'Arima',
-                        'Kavivanar',
-                        'Catamaran',
-                        'Baloo 2',
-                        'Tiro Tamil',
-                        'Inter',
-                        'Merienda',
-                        'Lobster',
-                        'Serif',
-                        'Monospace',
-                      ].map((font) {
-                        final selected = _fontStyle == font;
-                        return ChoiceChip(
-                          label: Text(font),
-                          selected: selected,
-                          selectedColor: AppColors.brand,
-                          labelStyle: TextStyle(
-                            color: selected ? Colors.white : _themeTextColor,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                          onSelected: (val) {
-                            if (val) {
-                              setState(() => _fontStyle = font);
-                              setModalState(() => _fontStyle = font);
-                            }
-                          },
-                        );
-                      }).toList(),
+                      children:
+                          [
+                            'Default',
+                            'Roboto',
+                            'Lora',
+                            'Playfair Display',
+                            'Mukta Malar',
+                            'Hind Madurai',
+                            'Pavanam',
+                            'Arima',
+                            'Kavivanar',
+                            'Catamaran',
+                            'Baloo 2',
+                            'Tiro Tamil',
+                            'Inter',
+                            'Merienda',
+                            'Lobster',
+                            'Serif',
+                            'Monospace',
+                          ].map((font) {
+                            final selected = _fontStyle == font;
+                            return ChoiceChip(
+                              label: Text(font),
+                              selected: selected,
+                              selectedColor: AppColors.brand,
+                              labelStyle: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : _themeTextColor,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                              onSelected: (val) {
+                                if (val) {
+                                  setState(() => _fontStyle = font);
+                                  setModalState(() => _fontStyle = font);
+                                  _saveReaderSettings();
+                                }
+                              },
+                            );
+                          }).toList(),
                     ),
                     const SizedBox(height: 18),
 
@@ -734,6 +848,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                             if (_fontSize > 14) {
                               setState(() => _fontSize -= 2);
                               setModalState(() {});
+                              _saveReaderSettings();
                             }
                           },
                         ),
@@ -743,10 +858,10 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                               _fontSize <= 14
                                   ? 'Small'
                                   : _fontSize <= 18
-                                      ? 'Medium'
-                                      : _fontSize <= 22
-                                          ? 'Large'
-                                          : 'Extra Large',
+                                  ? 'Medium'
+                                  : _fontSize <= 22
+                                  ? 'Large'
+                                  : 'Extra Large',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
@@ -761,6 +876,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                             if (_fontSize < 28) {
                               setState(() => _fontSize += 2);
                               setModalState(() {});
+                              _saveReaderSettings();
                             }
                           },
                         ),
@@ -781,40 +897,68 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: [
-                        {'label': 'Default', 'color': const Color(0xFF1A1A1A)},
-                        {'label': 'Black', 'color': const Color(0xFF000000)},
-                        {'label': 'Red', 'color': const Color(0xFFF44336)},
-                        {'label': 'Blue', 'color': const Color(0xFF2196F3)},
-                        {'label': 'Green', 'color': const Color(0xFF4CAF50)},
-                        {'label': 'Purple', 'color': const Color(0xFF9C27B0)},
-                        {'label': 'Orange', 'color': const Color(0xFFFF9800)},
-                        {'label': 'Teal', 'color': const Color(0xFF009668)},
-                        {'label': 'Brown', 'color': const Color(0xFF795548)},
-                        {'label': 'Brand Blue', 'color': const Color(0xFF0729E8)},
-                        {'label': 'White', 'color': Colors.white},
-                        {'label': 'Sepia', 'color': const Color(0xFF6B4226)},
-                      ].map((item) {
-                        final c = item['color'] as Color;
-                        final label = item['label'] as String;
-                        final selected = _fontColor == c;
-                        return ChoiceChip(
-                          label: Text(label),
-                          selected: selected,
-                          selectedColor: AppColors.brand,
-                          labelStyle: TextStyle(
-                            color: selected ? Colors.white : _themeTextColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                          onSelected: (val) {
-                            if (val) {
-                              setState(() => _fontColor = c);
-                              setModalState(() => _fontColor = c);
-                            }
-                          },
-                        );
-                      }).toList(),
+                      children:
+                          [
+                            {
+                              'label': 'Default',
+                              'color': const Color(0xFF1A1A1A),
+                            },
+                            {
+                              'label': 'Black',
+                              'color': const Color(0xFF000000),
+                            },
+                            {'label': 'Red', 'color': const Color(0xFFF44336)},
+                            {'label': 'Blue', 'color': const Color(0xFF2196F3)},
+                            {
+                              'label': 'Green',
+                              'color': const Color(0xFF4CAF50),
+                            },
+                            {
+                              'label': 'Purple',
+                              'color': const Color(0xFF9C27B0),
+                            },
+                            {
+                              'label': 'Orange',
+                              'color': const Color(0xFFFF9800),
+                            },
+                            {'label': 'Teal', 'color': const Color(0xFF009668)},
+                            {
+                              'label': 'Brown',
+                              'color': const Color(0xFF795548),
+                            },
+                            {
+                              'label': 'Brand Blue',
+                              'color': const Color(0xFF0729E8),
+                            },
+                            {'label': 'White', 'color': Colors.white},
+                            {
+                              'label': 'Sepia',
+                              'color': const Color(0xFF6B4226),
+                            },
+                          ].map((item) {
+                            final c = item['color'] as Color;
+                            final label = item['label'] as String;
+                            final selected = _fontColor == c;
+                            return ChoiceChip(
+                              label: Text(label),
+                              selected: selected,
+                              selectedColor: AppColors.brand,
+                              labelStyle: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : _themeTextColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                              onSelected: (val) {
+                                if (val) {
+                                  setState(() => _fontColor = c);
+                                  setModalState(() => _fontColor = c);
+                                  _saveReaderSettings();
+                                }
+                              },
+                            );
+                          }).toList(),
                     ),
                     const SizedBox(height: 18),
 
@@ -831,10 +975,34 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildThemeButton('Light', ReaderTheme.light, const Color(0xFFFFFFFF), Colors.black87, setModalState),
-                        _buildThemeButton('Sepia', ReaderTheme.sepia, const Color(0xFFFBF0D9), const Color(0xFF423326), setModalState),
-                        _buildThemeButton('Dark', ReaderTheme.dark, const Color(0xFF1E293B), Colors.white, setModalState),
-                        _buildThemeButton('Black', ReaderTheme.black, Colors.black, Colors.white, setModalState),
+                        _buildThemeButton(
+                          'Light',
+                          ReaderTheme.light,
+                          const Color(0xFFFFFFFF),
+                          Colors.black87,
+                          setModalState,
+                        ),
+                        _buildThemeButton(
+                          'Sepia',
+                          ReaderTheme.sepia,
+                          const Color(0xFFFBF0D9),
+                          const Color(0xFF423326),
+                          setModalState,
+                        ),
+                        _buildThemeButton(
+                          'Dark',
+                          ReaderTheme.dark,
+                          const Color(0xFF1E293B),
+                          Colors.white,
+                          setModalState,
+                        ),
+                        _buildThemeButton(
+                          'Black',
+                          ReaderTheme.black,
+                          Colors.black,
+                          Colors.white,
+                          setModalState,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -883,6 +1051,7 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       onTap: () {
         setState(() => _theme = theme);
         setModalState(() {});
+        _saveReaderSettings();
       },
       child: Column(
         children: [
@@ -893,7 +1062,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
               color: bg,
               shape: BoxShape.circle,
               border: Border.all(
-                color: selected ? AppColors.brand : Colors.grey.withOpacity(0.3),
+                color: selected
+                    ? AppColors.brand
+                    : Colors.grey.withOpacity(0.3),
                 width: selected ? 3 : 1,
               ),
             ),
@@ -951,12 +1122,16 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                 color: _themeTextColor,
               ),
             ),
-            Text(
-              'Page $_currentPage of $_totalPages${_zoomScale > 1.05 ? " • ${(_zoomScale * 100).toInt()}%" : ""}',
-              style: TextStyle(
-                fontSize: 11,
-                color: _themeTextColor.withOpacity(0.6),
-                fontWeight: FontWeight.w500,
+            // Tap page count → open Table of Contents
+            GestureDetector(
+              onTap: _showTocModal,
+              child: Text(
+                'Page $_currentPage of $_totalPages${_zoomScale > 1.05 ? " • ${(_zoomScale * 100).toInt()}%" : ""}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.brand,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -964,7 +1139,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
         actions: [
           IconButton(
             icon: Icon(
-              _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              _isBookmarked
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
               color: _isBookmarked ? AppColors.brand : _themeTextColor,
             ),
             tooltip: 'Bookmark Page',
@@ -991,187 +1168,110 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
         children: [
           // ── Main scrollable content ──
           InteractiveViewer(
-        scaleEnabled: true,
-        panEnabled: true,
-        minScale: 0.8,
-        maxScale: 3.0,
-        onInteractionUpdate: (details) {
-          if ((details.scale - _zoomScale).abs() > 0.05) {
-            setState(() {
-              _zoomScale = details.scale;
-            });
-          }
-        },
-        child: GestureDetector(
-          onHorizontalDragEnd: (details) {
-            if (details.primaryVelocity != null) {
-              if (details.primaryVelocity! < -200) {
-                // Swipe left -> Next Page
-                if (_currentPage < _totalPages) _goToPage(_currentPage + 1);
-              } else if (details.primaryVelocity! > 200) {
-                // Swipe right -> Prev Page
-                if (_currentPage > 1) _goToPage(_currentPage - 1);
+            scaleEnabled: true,
+            panEnabled: true,
+            minScale: 0.8,
+            maxScale: 3.0,
+            onInteractionUpdate: (details) {
+              if ((details.scale - _zoomScale).abs() > 0.05) {
+                setState(() {
+                  _zoomScale = details.scale;
+                });
               }
-            }
-          },
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Book Page Card
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: _theme == ReaderTheme.black
-                          ? const Color(0xFF111111)
-                          : _theme == ReaderTheme.dark
+            },
+            child: GestureDetector(
+              onHorizontalDragEnd: (details) {
+                if (details.primaryVelocity != null) {
+                  if (details.primaryVelocity! < -200) {
+                    // Swipe left -> Next Page
+                    if (_currentPage < _totalPages) _goToPage(_currentPage + 1);
+                  } else if (details.primaryVelocity! > 200) {
+                    // Swipe right -> Prev Page
+                    if (_currentPage > 1) _goToPage(_currentPage - 1);
+                  }
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Book Page Card
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: _theme == ReaderTheme.black
+                              ? const Color(0xFF111111)
+                              : _theme == ReaderTheme.dark
                               ? const Color(0xFF1E293B)
                               : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              widget.author,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: _themeTextColor.withOpacity(0.5),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.brand.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                'Page $_currentPage',
-                                style: const TextStyle(
-                                  color: AppColors.brand,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
-                                ),
-                              ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        if (_getPageContent(_currentPage).trim().isNotEmpty)
-                          Text(
-                            _getPageContent(_currentPage),
-                            style: _getAppliedTextStyle(),
-                            textAlign: TextAlign.justify,
-                          ),
-                      ],
-                    ),
-                  ),
-                  // Bottom spacer so content is never hidden behind the page controls bar
-                  const SizedBox(height: 120),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-
-          // ── Page controls: pinned at screen bottom, always above system nav ──
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Builder(
-              builder: (ctx) {
-                // Use viewPadding (not padding) so it works even in immersive mode
-                final bottomInset = MediaQuery.of(ctx).viewPadding.bottom;
-                return Container(
-              padding: EdgeInsets.fromLTRB(8, 8, 8, 12 + bottomInset),
-              decoration: BoxDecoration(
-                color: _themeBgColor.withOpacity(0.97),
-                border: Border(
-                  top: BorderSide(color: _themeTextColor.withOpacity(0.12), width: 1),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, -3),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // "1 of 1313" — always visible, always above system nav
-                  Text(
-                    '$_currentPage of $_totalPages',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.brand,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-                        color: _currentPage > 1 ? AppColors.brand : Colors.grey.shade400,
-                        onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                      ),
-                      Expanded(
-                        child: SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                            trackHeight: 4,
-                          ),
-                          child: Slider(
-                            value: _currentPage.toDouble(),
-                            min: 1,
-                            max: _totalPages.toDouble(),
-                            divisions: _totalPages > 1 ? _totalPages - 1 : 1,
-                            activeColor: AppColors.brand,
-                            inactiveColor: AppColors.brand.withOpacity(0.15),
-                            onChanged: (val) => _goToPage(val.round()),
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  widget.author,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _themeTextColor.withOpacity(0.5),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.brand.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    'Page $_currentPage',
+                                    style: const TextStyle(
+                                      color: AppColors.brand,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            if (_getPageContent(_currentPage).trim().isNotEmpty)
+                              Text(
+                                _getPageContent(_currentPage),
+                                style: _getAppliedTextStyle(),
+                                textAlign: TextAlign.justify,
+                              ),
+                          ],
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20),
-                        color: _currentPage < _totalPages ? AppColors.brand : Colors.grey.shade400,
-                        onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            );
-              }, // Builder builder
-            ), // Builder
+            ),
           ),
         ], // Stack children
       ), // Stack / body

@@ -1,4 +1,4 @@
-package com.dmk.ryitu
+package com.ritpen
 
 import io.flutter.embedding.android.FlutterActivity
 

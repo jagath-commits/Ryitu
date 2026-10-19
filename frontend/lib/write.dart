@@ -114,7 +114,7 @@ class PageData {
     this.lineSpacing = 1.4,
     this.letterSpacing = 0.0,
     this.pageMargin = 50.0,
-    this.textAlign = TextAlign.left,
+    this.textAlign = TextAlign.justify,
   }) : blocks = [PageBlock.text("")];
 }
 
@@ -643,6 +643,21 @@ String cleanExtractedTamilText(String raw) {
   text = normalizeTamilKerningAndSyllables(text);
 
   text = text.replaceAll(RegExp(r'\u0BCD\u0BCD+'), '\u0BCD');
+
+  // Remove unwanted single-letter orphans at end of lines:
+  // If a line ends with a single character (Tamil or Latin) preceded by a space,
+  // merge it back to the previous line to avoid orphan letters at page endings.
+  text = text.replaceAllMapped(
+    RegExp(r'([ \t]+[\u0B80-\u0BFFa-zA-Z\u0900-\u097F])\n'),
+    (m) {
+      final fragment = m[1]!.trimLeft();
+      // Only pull back truly isolated short words (1-2 chars)
+      if (fragment.length <= 2) {
+        return '${m[1]!} '; // join with a space, remove newline
+      }
+      return m[0]!; // leave as-is
+    },
+  );
 
   return text.trim();
 }
@@ -1174,6 +1189,7 @@ class _WritePageState extends State<WritePage> {
               fontSize: 22,
               fontFamily: docFontFamily,
               fontColor: 0xFF000000,
+              textAlign: TextAlign.justify,
             )..blocks = List.from(pageBlocks),
           );
           if (_pages.length >= maxImportPages) break;
@@ -1212,6 +1228,7 @@ class _WritePageState extends State<WritePage> {
                       fontSize: 22,
                       fontFamily: docFontFamily,
                       fontColor: 0xFF000000,
+                      textAlign: TextAlign.justify,
                     )..blocks = List.from(currentBlocks),
                   );
                   currentBlocks.clear();
@@ -1231,6 +1248,7 @@ class _WritePageState extends State<WritePage> {
                   fontSize: 22,
                   fontFamily: docFontFamily,
                   fontColor: 0xFF000000,
+                  textAlign: TextAlign.justify,
                 )..blocks = List.from(currentBlocks),
               );
               currentBlocks.clear();
@@ -1250,6 +1268,7 @@ class _WritePageState extends State<WritePage> {
               fontSize: 22,
               fontFamily: docFontFamily,
               fontColor: 0xFF000000,
+              textAlign: TextAlign.justify,
             )..blocks = List.from(currentBlocks),
           );
         }
@@ -1517,6 +1536,77 @@ class _WritePageState extends State<WritePage> {
     }
   }
 
+  /// Sanitize pasted/typed text to remove malformed UTF-16 sequences.
+  /// Lone surrogate characters (U+D800–U+DFFF) are illegal in Dart strings
+  /// and cause "string is not well-formed UTF-16" crashes in TextPainter,
+  /// substring(), and RegExp operations.
+  String _sanitizeText(String raw) {
+    try {
+      // Fast path: iterate rune code points (these are already validated Unicode scalars)
+      final buf = StringBuffer();
+      for (final rune in raw.runes) {
+        // Skip private-use surrogates that sneak in from some clipboard sources
+        if (rune >= 0xD800 && rune <= 0xDFFF) continue;
+        buf.writeCharCode(rune);
+      }
+      return buf.toString();
+    } catch (_) {
+      // Fallback: code-unit scan — skip lone high/low surrogates
+      final buf = StringBuffer();
+      int i = 0;
+      while (i < raw.length) {
+        final cu = raw.codeUnitAt(i);
+        if (cu >= 0xD800 && cu <= 0xDBFF) {
+          // High surrogate: only keep if followed by a valid low surrogate
+          if (i + 1 < raw.length) {
+            final next = raw.codeUnitAt(i + 1);
+            if (next >= 0xDC00 && next <= 0xDFFF) {
+              // Valid surrogate pair — write both code units
+              buf.writeCharCode(cu);
+              buf.writeCharCode(next);
+              i += 2;
+              continue;
+            }
+          }
+          i++; // lone high surrogate — skip
+        } else if (cu >= 0xDC00 && cu <= 0xDFFF) {
+          i++; // lone low surrogate — skip
+        } else {
+          buf.writeCharCode(cu);
+          i++;
+        }
+      }
+      return buf.toString();
+    }
+  }
+
+  /// Returns a safe substring that never splits a surrogate pair.
+  String _safeSub(String text, int start, int end) {
+    if (start < 0) start = 0;
+    if (end > text.length) end = text.length;
+    if (start >= end) return '';
+    // Ensure 'end' doesn't land on a low surrogate (second half of a pair)
+    while (end > start && end < text.length) {
+      final cu = text.codeUnitAt(end);
+      if (cu >= 0xDC00 && cu <= 0xDFFF) {
+        end--;
+      } else {
+        break;
+      }
+    }
+    // Ensure 'start' doesn't land on a low surrogate
+    while (start < end) {
+      final cu = text.codeUnitAt(start);
+      if (cu >= 0xDC00 && cu <= 0xDFFF) {
+        start++;
+      } else {
+        break;
+      }
+    }
+    if (start >= end) return '';
+    return text.substring(start, end);
+  }
+
   void _onFocusChanged(int blockIndex, bool hasFocus) {
     if (hasFocus) {
       setState(() {
@@ -1607,10 +1697,11 @@ class _WritePageState extends State<WritePage> {
   void _rebalancePagesFromIndex(int pageIndex) {
     if (pageIndex >= _pages.length || _isUpdatingState) return;
 
-    // Safety guard: Never perform cascading rebalance on multi-page documents or imported PDFs.
-    // Each page in multi-page documents / PDFs is an independent page with its own SingleChildScrollView.
-    // Cascading rebalancing across many pages leads to runaway page creation and Scudo OOM native heap crashes.
-    if (_pdfFile != null || _pages.length > 5) return;
+    // Safety guard: Never perform cascading rebalance on imported PDFs.
+    // Each page in PDF imports is an independent page with its own SingleChildScrollView.
+    // Cascading rebalancing across PDF pages leads to runaway page creation and OOM crashes.
+    // For manually written/pasted content (no PDF), allow rebalancing up to 500 pages.
+    if (_pdfFile != null) return;
 
     _isUpdatingState = true;
     try {
@@ -1619,8 +1710,8 @@ class _WritePageState extends State<WritePage> {
               .clamp(10.0, 2000.0);
       bool carryOver = false;
 
-      // Limit pages examined to at most 3 pages ahead
-      final int maxPagesToExamine = min(_pages.length, pageIndex + 3);
+      // Examine all pages from the start index to the end (no artificial 3-page cap)
+      final int maxPagesToExamine = _pages.length + 500; // Allow new pages to be created
 
       for (int p = pageIndex; p < maxPagesToExamine; p++) {
         List<PageBlock> blocksOnThisPage = _pages[p].blocks
@@ -1643,10 +1734,21 @@ class _WritePageState extends State<WritePage> {
 
         if (blocksOnThisPage.isNotEmpty) {
           int lastTouched = _distributeBlocksToPages(p, blocksOnThisPage);
-          carryOver = lastTouched > p;
-          // Jump loop index if we filled multiple pages
+          // Only carry over if the last written page still overflows —
+          // otherwise the outer loop re-processes already-filled pages and
+          // duplicates their content.
+          if (lastTouched > p && lastTouched < _pages.length) {
+            final _lastPageTexts = _pages[lastTouched].blocks
+                .where((b) => b.type == "text")
+                .map((e) => e.text ?? "")
+                .join("\n\n");
+            carryOver = _lastPageTexts.isNotEmpty &&
+                _doesTextOverflow(_lastPageTexts, _pages[lastTouched], maxWidth);
+          } else {
+            carryOver = false;
+          }
+          // Jump loop index past pages already handled by _distributeBlocksToPages
           if (lastTouched > p) {
-            // we let the loop naturally increment p++, so we set p to lastTouched-1
             p = lastTouched - 1;
           }
         } else {
@@ -1654,7 +1756,7 @@ class _WritePageState extends State<WritePage> {
         }
 
         // Safety hard limit to prevent infinite page creation crashes
-        if (_pages.length > 20) break;
+        if (_pages.length > 500) break;
       }
 
       // Cleanup trailing empty pages
@@ -1699,7 +1801,7 @@ class _WritePageState extends State<WritePage> {
 
         // ensure page exists
         if (pageIdx >= _pages.length) {
-          if (_pages.length >= 20) {
+          if (_pages.length >= 500) {
             // Prevent runaway page creation
             break;
           }
@@ -1840,36 +1942,14 @@ class _WritePageState extends State<WritePage> {
               low = mid;
             }
           }
-          if (low == 0) {
-            // Avoid single-letter splits: choose a small but reasonable minimum
-            // fallback of 3 characters (or the remaining length if shorter).
-            low = min(remaining.length, 3);
-            // Prefer to cut at last whitespace if available within the fallback
-            if (low < remaining.length) {
-              int lastSpace = remaining.substring(0, low).lastIndexOf(' ');
-              if (lastSpace > 0) {
-                low = lastSpace;
-              }
-            }
-            if (low == 0) {
-              // give up gracefully to avoid infinite loop
-              low = 1;
-            }
-            if (remaining.isEmpty) break;
-          }
+          // ── Clean the cut point to a proper word boundary ───────────────
+          // low is the max chars that fit. Walk back to the nearest clean break.
+          low = _cleanSplitPoint(remaining, low);
 
-          String fitPart = remaining.substring(0, low);
+          if (low <= 0) low = 1; // safety: never infinite-loop
+          if (low > remaining.length) low = remaining.length;
 
-          // Improve word wrapping: avoid breaking words if possible to prevent single-letter lines
-          if (low < remaining.length &&
-              !remaining[low].contains(RegExp(r'\s')) &&
-              !remaining[low - 1].contains(RegExp(r'\s'))) {
-            int lastSpace = remaining.substring(0, low).lastIndexOf(' ');
-            if (lastSpace > 0) {
-              low = lastSpace;
-              fitPart = remaining.substring(0, low);
-            }
-          }
+          String fitPart = _safeSub(remaining, 0, low).trimRight();
 
           if (existing.isNotEmpty &&
               !remaining.startsWith("\n") &&
@@ -1879,14 +1959,81 @@ class _WritePageState extends State<WritePage> {
             lastBlock.text = existing + fitPart;
           }
 
-          // Preserve leading whitespace/newlines of the remainder to keep
-          // paragraph boundaries intact. Do NOT aggressively trim here.
-          remaining = remaining.substring(low);
+          // Strip leading whitespace from the remainder so the next page starts cleanly
+          final String rawRemaining = _safeSub(remaining, low, remaining.length);
+          remaining = rawRemaining.replaceFirst(RegExp(r'^[ \t]+'), '');
           pageIdx++;
         }
       }
     }
     return pageIdx;
+  }
+
+  /// Finds the best position ≤ [maxPos] in [text] to split without breaking
+  /// words, Tamil syllables, or UTF-16 surrogate pairs. Priority order:
+  ///   1. Paragraph boundary (\n\n or \n)
+  ///   2. Word boundary (space)
+  ///   3. Tamil syllable-safe boundary (not inside a vowel-mark sequence)
+  ///   4. Surrogate-pair-safe position
+  ///   5. [maxPos] itself as a last resort
+  int _cleanSplitPoint(String text, int maxPos) {
+    if (maxPos <= 0 || text.isEmpty) return 0;
+    if (maxPos >= text.length) return text.length;
+
+    // ── Clamp maxPos so we never start inside a low surrogate ─────────────
+    int safeMax = maxPos;
+    while (safeMax > 0 && safeMax < text.length) {
+      final cu = text.codeUnitAt(safeMax);
+      if (cu >= 0xDC00 && cu <= 0xDFFF) {
+        safeMax--; // step back out of a low surrogate
+      } else {
+        break;
+      }
+    }
+    if (safeMax <= 0) return 1;
+
+    // 1. Prefer paragraph boundary within last 30% of the range
+    final int searchFrom = (safeMax * 0.7).toInt();
+    final String window = _safeSub(text, searchFrom, safeMax);
+
+    int paraBreak = window.lastIndexOf('\n\n');
+    if (paraBreak >= 0) {
+      int pos = searchFrom + paraBreak + 2;
+      return pos.clamp(1, text.length);
+    }
+
+    int lineBreak = window.lastIndexOf('\n');
+    if (lineBreak >= 0) {
+      int pos = searchFrom + lineBreak + 1;
+      return pos.clamp(1, text.length);
+    }
+
+    // 2. Word boundary: find last space within safe range
+    final String head = _safeSub(text, 0, safeMax);
+    int lastSpace = head.lastIndexOf(' ');
+    if (lastSpace > safeMax * 0.5) {
+      return (lastSpace + 1).clamp(1, text.length);
+    }
+
+    // 3. Tamil syllable boundary: avoid cutting inside dependent vowel signs
+    // Tamil vowel signs (மாத்திரை): U+0BBE–U+0BCD, U+0BD7
+    int pos = safeMax;
+    while (pos > 1 && pos < text.length) {
+      try {
+        final ch = text[pos];
+        if (RegExp(r'[\u0BBE-\u0BCD\u0BD7]').hasMatch(ch)) {
+          pos--;
+        } else {
+          break;
+        }
+      } catch (_) {
+        pos--;
+      }
+    }
+    if (pos > 0 && pos != safeMax) return pos;
+
+    // 4. Last resort – use the surrogate-safe max position
+    return safeMax;
   }
 
   void _handleTextChange(String value, int pageIndex, int blockIndex) {
@@ -1900,10 +2047,45 @@ class _WritePageState extends State<WritePage> {
       return;
     }
 
+    // ── Sanitize pasted content ──────────────────────────────────────────────
+    // Remove malformed UTF-16 sequences (lone surrogates) that cause
+    // "string is not well-formed UTF-16" crashes in TextPainter / substring().
+    final String sanitized = _sanitizeText(value);
+
+    // If sanitization changed anything, update the controller so the TextField
+    // displays the clean version and future onChange calls use the clean text.
+    if (sanitized != value) {
+      final key = '$pageIndex-$blockIndex';
+      final ctrl = _controllers[key];
+      if (ctrl != null && ctrl.text != sanitized) {
+        final sel = ctrl.selection;
+        ctrl.value = TextEditingValue(
+          text: sanitized,
+          selection: TextSelection.collapsed(
+            offset: sel.baseOffset.clamp(0, sanitized.length),
+          ),
+        );
+      }
+    }
+
     setState(() {
-      // Update text without truncating lines
-      _pages[pageIndex].blocks[blockIndex].text = value;
-      _pages[pageIndex].blocks[blockIndex].previousText = value;
+      // Update text without truncating lines — use sanitized text
+      _pages[pageIndex].blocks[blockIndex].text = sanitized;
+      _pages[pageIndex].blocks[blockIndex].previousText = sanitized;
+
+      // Auto-detect Tamil script and switch to Tamil-capable font for correct rendering
+      final bool hasTamil = RegExp(r'[\u0B80-\u0BFF]').hasMatch(sanitized);
+      if (hasTamil) {
+        final currentFont = _pages[pageIndex].fontFamily;
+        // Switch to a Tamil-capable font if the current font can't render Tamil properly
+        const tamilFonts = {
+          'Noto Sans Tamil', 'Mukta Malar', 'Hind Madurai', 'Pavanam',
+          'Arima', 'Kavivanar', 'Catamaran', 'Baloo 2', 'Tiro Tamil'
+        };
+        if (!tamilFonts.contains(currentFont)) {
+          _pages[pageIndex].fontFamily = 'Noto Sans Tamil';
+        }
+      }
 
       _saveToHistory(immediate: false);
     });
@@ -1912,14 +2094,14 @@ class _WritePageState extends State<WritePage> {
     final page = _pages[pageIndex];
     double maxWidth = MediaQuery.of(context).size.width - (page.pageMargin * 2);
 
-    if (_doesTextOverflow(value, page, maxWidth)) {
-      if (_pdfFile == null && _pages.length <= 5) {
+    if (_doesTextOverflow(sanitized, page, maxWidth)) {
+      if (_pdfFile == null) {
         _rebalancePagesFromIndex(pageIndex);
       }
 
       // Check if we need to move focus to the next page
       String newBlockText = _pages[pageIndex].blocks[blockIndex].text ?? "";
-      bool contentMoved = newBlockText.length < value.length;
+      bool contentMoved = newBlockText.length < sanitized.length;
 
       if (_pages.length > oldPageCount || contentMoved) {
         int newPageIndex = (_pages.length > oldPageCount)
@@ -2054,7 +2236,7 @@ class _WritePageState extends State<WritePage> {
           lineSpacing: (page['lineSpacing'] ?? 1.4).toDouble(),
           letterSpacing: (page['letterSpacing'] ?? 0.0).toDouble(),
           pageMargin: (page['pageMargin'] ?? 50.0).toDouble(),
-          textAlign: TextAlign.values[page['textAlign'] ?? 0],
+          textAlign: TextAlign.values[page['textAlign'] ?? 3],
         );
 
         pageData.blocks.clear();
@@ -2133,7 +2315,7 @@ class _WritePageState extends State<WritePage> {
               lineSpacing: 1.4,
               letterSpacing: 0.0,
               pageMargin: 50.0,
-              textAlign: TextAlign.left,
+              textAlign: TextAlign.justify,
             ),
           ];
           _currentPage = 0;
@@ -2498,7 +2680,7 @@ class _WritePageState extends State<WritePage> {
           lineSpacing: lastPage?.lineSpacing ?? 1.4,
           letterSpacing: lastPage?.letterSpacing ?? 0.0,
           pageMargin: lastPage?.pageMargin ?? 50.0,
-          textAlign: lastPage?.textAlign ?? TextAlign.left,
+          textAlign: lastPage?.textAlign ?? TextAlign.justify,
         ),
       );
       _pageController.jumpToPage(_pages.length - 1);
@@ -2762,7 +2944,7 @@ class _WritePageState extends State<WritePage> {
               ),
               const SizedBox(width: 8),
               Text(
-                "Ryitu",
+                "Ritpen",
                 style: GoogleFonts.outfit(
                   color: const Color(0xFF1A1A1A),
                   fontWeight: FontWeight.w900,
@@ -4787,7 +4969,17 @@ class _PostPageState extends State<PostPage> {
           "blocks": blocksJson,
         });
       }
-      request.fields["content"] = jsonEncode(pagesJson);
+      // Embed title styling inside content so it survives the round-trip
+      // without any backend schema changes (content is Mixed type).
+      final contentJson = {
+        "titleStyle": {
+          "fontSize": widget.titleFontSize ?? 28,
+          "color": widget.titleColor?.toARGB32() ?? Colors.white.toARGB32(),
+          "fontFamily": widget.titleFontFamily ?? "Roboto",
+        },
+        "pages": pagesJson,
+      };
+      request.fields["content"] = jsonEncode(contentJson);
       // Send page count so feed can show badge like "13 Pages"
       request.fields["pageCount"] = widget.pages.length.toString();
 

@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -514,7 +514,7 @@ class _ProfilePageState extends State<ProfilePage>
     final isUserIdLike = _username.isEmpty ||
         _username == widget.userId ||
         RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(_username);
-    final displayName = !isUserIdLike ? _username : 'Ryitu User';
+    final displayName = !isUserIdLike ? _username : 'Ritpen User';
 
     return Scaffold(
       body: RefreshIndicator(

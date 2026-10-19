@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dmk_project/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -89,7 +89,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               title: '6. Child Safety Standards',
               contentBefore:
                   'Zero-Tolerance Policy for Child Sexual Abuse and Exploitation (CSAE):\n\n'
-                  'Ryitu, developed by Coderead Academy, maintains a strict zero-tolerance policy toward Child Sexual Abuse and Exploitation (CSAE) and Child Sexual Abuse Material (CSAM). Ryitu strictly prohibits users from creating, uploading, publishing, sharing, requesting, promoting, distributing, or otherwise facilitating any content or activity that sexually exploits, abuses, or endangers children.\n\n'
+                  'Ritpen, developed by Coderead Academy, maintains a strict zero-tolerance policy toward Child Sexual Abuse and Exploitation (CSAE) and Child Sexual Abuse Material (CSAM). Ritpen strictly prohibits users from creating, uploading, publishing, sharing, requesting, promoting, distributing, or otherwise facilitating any content or activity that sexually exploits, abuses, or endangers children.\n\n'
                   'Prohibited activities include, but are not limited to:\n'
                   '• Child Sexual Abuse and Exploitation (CSAE) in any form.\n'
                   '• Child Sexual Abuse Material (CSAM), including images, videos, text, illustrations, or other content depicting or facilitating sexual abuse or exploitation of minors.\n'
@@ -101,20 +101,20 @@ class PrivacyPolicyPage extends StatelessWidget {
                   'Content Reporting and User Safety:\n\n'
                   'Users who become aware of content or behavior that may involve CSAE or CSAM should report it immediately through the available reporting or support mechanism within the application or by contacting our Child Safety Point of Contact. Reports involving child safety are treated as a priority. When we become aware of suspected CSAM or CSAE content, we may remove the content, restrict or terminate the responsible account, preserve relevant information where legally appropriate, and report the matter to the appropriate authorities as required by applicable law.\n\n'
                   'Child Safety Point of Contact:\n\n'
-                  'Child Safety Team – Ryitu / Coderead Academy\n\n',
+                  'Child Safety Team – Ritpen / Coderead Academy\n\n',
               email: 'jagath@coderead.in',
               contentAfter:
                   '\n\nCompliance With Applicable Laws:\n\n'
-                  'Ryitu is committed to complying with applicable child safety laws and regulations. We cooperate with relevant authorities and take appropriate action when legally required in relation to suspected child sexual abuse, exploitation, or CSAM. Ryitu does not knowingly permit the creation, upload, storage, publication, or distribution of content that facilitates the sexual abuse or exploitation of children.\n\n'
+                  'Ritpen is committed to complying with applicable child safety laws and regulations. We cooperate with relevant authorities and take appropriate action when legally required in relation to suspected child sexual abuse, exploitation, or CSAM. Ritpen does not knowingly permit the creation, upload, storage, publication, or distribution of content that facilitates the sexual abuse or exploitation of children.\n\n'
                   'Enforcement:\n\n'
                   'Violations of these Child Safety Standards may result in immediate removal of content, suspension or termination of the user\'s account, and/or reporting to relevant authorities where required by applicable law.\n\n'
-                  'These Child Safety Standards apply to all users and all content available through Ryitu.\n\n'
+                  'These Child Safety Standards apply to all users and all content available through Ritpen.\n\n'
                   'Last updated: August 2026',
             ),
             const SizedBox(height: 20),
             Center(
               child: Text(
-                'Thank you for trusting Ryitu.',
+                'Thank you for trusting Ritpen.',
                 style: GoogleFonts.outfit(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -264,7 +264,7 @@ class TermsConditionsPage extends StatelessWidget {
               icon: Icons.verified_user_outlined,
               title: '1. Acceptance of Terms',
               content:
-                  'By installing and using the Ryitu mobile application, you agree to comply with and be bound by these Terms and Conditions. If you do not agree, please do not use the app.',
+                  'By installing and using the Ritpen mobile application, you agree to comply with and be bound by these Terms and Conditions. If you do not agree, please do not use the app.',
             ),
             _buildSection(
               icon: Icons.manage_accounts_rounded,
@@ -278,7 +278,7 @@ class TermsConditionsPage extends StatelessWidget {
               icon: Icons.create_rounded,
               title: '3. Content Guidelines & Ownership',
               content:
-                  '• Intellectual Property: You retain the ownership and copyright of any stories and content you post on Ryitu. By posting, you grant Ryitu a non-exclusive license to display, host, and distribute your content within the app.\n'
+                  '• Intellectual Property: You retain the ownership and copyright of any stories and content you post on Ritpen. By posting, you grant Ritpen a non-exclusive license to display, host, and distribute your content within the app.\n'
                   '• Prohibited Content: You agree not to post content that is illegal, hateful, violent, harassing, defamatory, sexually explicit, or violates intellectual property rights.\n'
                   '• Moderation: We reserve the right to remove any stories or terminate user accounts that violate these guidelines without prior notice.',
             ),
@@ -286,7 +286,7 @@ class TermsConditionsPage extends StatelessWidget {
               icon: Icons.gavel_rounded,
               title: '4. Limitation of Liability',
               content:
-                  'Ryitu is provided "as is" without warranties of any kind. We are not liable for any damages, data loss, or service interruptions arising from your use of the application.',
+                  'Ritpen is provided "as is" without warranties of any kind. We are not liable for any damages, data loss, or service interruptions arising from your use of the application.',
             ),
             _buildSection(
               icon: Icons.edit_note_rounded,

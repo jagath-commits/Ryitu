@@ -23,30 +23,26 @@ class _NotificationPostPageState extends State<NotificationPostPage> {
   }
 
   List<dynamic> _extractPages(dynamic rawContent) {
-  if (rawContent == null) return [];
-
-  if (rawContent is List) {
-    return rawContent;
-  }
-
-  if (rawContent is String) {
-    try {
-      final decoded = jsonDecode(rawContent);
-
-      if (decoded is List) {
-        return decoded;
-      }
-
-      if (decoded is Map && decoded["pages"] != null) {
-        return decoded["pages"];
-      }
-    } catch (e) {
-      print("JSON ERROR = $e");
+    if (rawContent == null) return [];
+    if (rawContent is List) return rawContent;
+    // Already a decoded Map (e.g. {titleStyle: {...}, pages: [...]})
+    if (rawContent is Map) {
+      if (rawContent['pages'] != null) return rawContent['pages'];
+      return [];
     }
+    if (rawContent is String) {
+      try {
+        final decoded = jsonDecode(rawContent);
+        if (decoded is List) return decoded;
+        if (decoded is Map && decoded["pages"] != null) {
+          return decoded["pages"];
+        }
+      } catch (e) {
+        print("JSON ERROR = $e");
+      }
+    }
+    return [];
   }
-
-  return [];
-}
 
   Future<void> _loadPost() async {
     try {

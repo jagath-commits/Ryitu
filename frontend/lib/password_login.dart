@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dmk_project/api_config.dart';
 import 'package:dmk_project/app_theme.dart';
@@ -9,7 +9,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dmk_project/forgot_password_page.dart';
 
 // ============================================================
@@ -28,7 +27,7 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
   final TextEditingController confirmPasswordController =
       TextEditingController();
 
-  bool _isSignIn = true; // True = Sign In, False = Sign Up (Register)
+  bool _isSignIn = false; // True = Sign In, False = Sign Up (Register)
   bool isLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
@@ -84,23 +83,9 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
           final data = decoded['data'];
           final prefs = await SharedPreferences.getInstance();
 
-          String? fcmToken = await FirebaseMessaging.instance.getToken();
-
-          print("FCM TOKEN => $fcmToken");
-
           await prefs.setString("token", data["token"] ?? "");
           await prefs.setString("user_id", data["user_id"]?.toString() ?? "");
 
-          //String? fcmToken = await FirebaseMessaging.instance.getToken();
-
-          await http.post(
-            Uri.parse("${ApiConfig.apiBaseUrl}/auth/save-fcm-token"),
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode({
-              "user_id": data["user_id"],
-              "fcm_token": fcmToken,
-            }),
-          );
           await prefs.setString("user_mobile", data["user_mobile"] ?? "");
           await prefs.setString("username", data["username"] ?? "");
           await prefs.setString("user_email", data["email"] ?? "");
@@ -934,8 +919,8 @@ class TermsPage extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(24),
         child: Text(
-          "Terms and Conditions for Ryitu.\n\n"
-          "1. Acceptance of Terms: By downloading and using the Ryitu application, you agree to comply with and be bound by these terms.\n\n"
+          "Terms and Conditions for Ritpen.\n\n"
+          "1. Acceptance of Terms: By downloading and using the Ritpen application, you agree to comply with and be bound by these terms.\n\n"
           "2. User Content: You are solely responsible for the content you write, publish, or share within the application.\n\n"
           "3. Privacy: We respect your privacy. Please review our Privacy Policy to understand how we collect and use your data.",
           style: TextStyle(fontSize: 15, height: 1.6),
@@ -963,7 +948,7 @@ class PrivacyPage extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(24),
         child: Text(
-          "Privacy Policy for Ryitu.\n\n"
+          "Privacy Policy for Ritpen.\n\n"
           "1. Data Collection: We collect standard profile information such as username, mobile number, and constituency to customize your feed and enable notification delivery.\n\n"
           "2. Notifications: We send notification updates via FCM (Firebase Messaging).\n\n"
           "3. Information Sharing: We do not share your private personal data with third parties unless required by law.",

@@ -151,13 +151,35 @@ class _CoverPreviewWidgetState extends State<CoverPreviewWidget> {
       } catch (_) {}
     }
 
-    // ✅ GET TITLE
-    final String title = _currentPost['title']?.toString() ?? '';
+    // ✅ GET TITLE STYLE from content (embedded at publish time)
+    Map<String, dynamic>? titleStyle;
+    try {
+      final raw = _currentPost['content'];
+      dynamic decoded;
+      if (raw is String) {
+        decoded = jsonDecode(raw.trim());
+      } else {
+        decoded = raw;
+      }
+      if (decoded is Map && decoded['titleStyle'] is Map) {
+        titleStyle = Map<String, dynamic>.from(decoded['titleStyle'] as Map);
+      }
+    } catch (_) {}
 
+    final double titleFontSize = (titleStyle?['fontSize'] as num?)?.toDouble() ?? 18;
+    final String titleFontFamily = titleStyle?['fontFamily']?.toString() ?? pageFontFamily;
+    Color titleFontColor = Colors.black87;
+    if (titleStyle?['color'] != null) {
+      try {
+        titleFontColor = Color((titleStyle!['color'] as num).toInt());
+      } catch (_) {}
+    }
+
+    // ✅ TITLE BANNER (NEW)
+    final String title = _currentPost['title']?.toString() ?? '';
     List<Widget> blockWidgets = [];
     final blocks = firstPage['blocks'] ?? [];
 
-    // ✅ TITLE BANNER (NEW)
     if (title.isNotEmpty) {
       blockWidgets.add(
         Container(
@@ -173,16 +195,18 @@ class _CoverPreviewWidgetState extends State<CoverPreviewWidget> {
           ),
           child: Text(
             title,
-            style: const TextStyle(
-              fontSize: 18,
+            style: TextStyle(
+              fontSize: titleFontSize.clamp(12.0, 32.0),
               fontWeight: FontWeight.w700,
-              color: Colors.black87,
+              fontFamily: titleFontFamily,
+              color: titleFontColor == Colors.white ? Colors.black87 : titleFontColor,
               height: 1.4,
             ),
           ),
         ),
       );
     }
+
 
     // Add a professional header
     blockWidgets.add(

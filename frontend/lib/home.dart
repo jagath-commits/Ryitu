@@ -422,7 +422,7 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(width: 8),
             Text(
-              "Ryitu",
+              "Ritpen",
               style: GoogleFonts.outfit(
                 color: const Color(0xFF1A1A1A),
                 fontWeight: FontWeight.w900,
@@ -549,7 +549,7 @@ class _HomePageState extends State<HomePage> {
                         isSaved: SavedPostsManager.instance.isSaved(postId),
                         onLike: () => _toggleLike(postId),
                         onSave: () => _toggleSave(postId),
-                        currentCategory: 'Ryitu',
+                        currentCategory: 'Ritpen',
                         currentUserId: _userId,
                         currentUsername: _currentUsername,
                       );
@@ -631,6 +631,11 @@ class PostContainer extends StatelessWidget {
   List<dynamic> _extractPages(dynamic rawContent) {
     if (rawContent == null) return [];
     if (rawContent is List) return rawContent;
+    // Already a decoded Map (e.g. {titleStyle: {...}, pages: [...]})
+    if (rawContent is Map) {
+      if (rawContent.containsKey('pages')) return rawContent['pages'] ?? [];
+      return [];
+    }
     if (rawContent is String) {
       try {
         final decoded = jsonDecode(rawContent);
@@ -672,7 +677,7 @@ class PostContainer extends StatelessWidget {
       } else if (currentUserId != null && currentUserId!.isNotEmpty && post['user_id']?.toString() == currentUserId && currentUsername != null && currentUsername!.isNotEmpty) {
         username = currentUsername!;
       } else {
-        username = "Ryitu User";
+        username = "Ritpen User";
       }
     }
     final profileImage = _fullUrl(post['profile_image']?.toString());
@@ -790,6 +795,36 @@ class PostContainer extends StatelessWidget {
     final commName = (post['communityName'] ?? post['community_name'])?.toString();
     final isCommPost = (post['isCommunityPost'] == true) || (commId != null && commId.isNotEmpty && commId != 'null');
     final createdAtRaw = post['createdAt'] ?? post['created_at'];
+
+    // Parse titleStyle embedded in content JSON (saved at publish time)
+    double titleFontSize = 19;
+    Color titleColor = const Color(0xFF111827);
+    String? titleFontFamily;
+    try {
+      final rawContent = post['content'];
+      dynamic decodedContent;
+      if (rawContent is String) {
+        decodedContent = jsonDecode(rawContent.trim());
+      } else {
+        decodedContent = rawContent;
+      }
+      if (decodedContent is Map && decodedContent['titleStyle'] is Map) {
+        final ts = decodedContent['titleStyle'] as Map;
+        if (ts['fontSize'] != null) {
+          titleFontSize = (ts['fontSize'] as num).toDouble().clamp(12.0, 36.0);
+        }
+        if (ts['color'] != null) {
+          final c = Color((ts['color'] as num).toInt());
+          // Don't use white on the card (white background) — keep dark fallback
+          if (c != Colors.white && c.computeLuminance() > 0.05) {
+            titleColor = c;
+          }
+        }
+        if (ts['fontFamily'] != null) {
+          titleFontFamily = ts['fontFamily'].toString();
+        }
+      }
+    } catch (_) {}
 
 
 
@@ -1097,17 +1132,18 @@ class PostContainer extends StatelessWidget {
         ),
         const SizedBox(height: 14),
 
-        // Centered Bold Title (Tamil font supported)
+        // Centered Bold Title (custom font/color from cover editor)
         GestureDetector(
           onTap: () => _openReader(context, postId, username, profileImage, title, commId),
           child: Center(
             child: Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF111827),
-                fontSize: 19,
+              style: TextStyle(
+                color: titleColor,
+                fontSize: titleFontSize,
                 fontWeight: FontWeight.w900,
+                fontFamily: titleFontFamily,
                 height: 1.35,
               ),
             ),
@@ -1202,8 +1238,8 @@ class PostContainer extends StatelessWidget {
                   GestureDetector(
                     onTap: () {
                       final shareUrl = "${ApiConfig.baseUrl}/share/post/$postId";
-                      final deepLink = "ryitu://post/$postId";
-                      Share.share("Check out this story on Ryitu: '$title'\n\nRead here: $shareUrl\nOpen in App: $deepLink");
+                      final deepLink = "Ritpen://post/$postId";
+                      Share.share("Check out this story on Ritpen: '$title'\n\nRead here: $shareUrl\nOpen in App: $deepLink");
                     },
                     behavior: HitTestBehavior.opaque,
                     child: const Padding(
@@ -2143,12 +2179,15 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
               ),
             ),
             if (totalPages > 0)
-              Text(
-                "Page ${_currentPage + 1} of $totalPages",
-                style: TextStyle(
-                  color: appBarTextColor.withOpacity(0.6),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+              GestureDetector(
+                onTap: () => _showPageGridBottomSheet(context),
+                child: Text(
+                  "Page ${_currentPage + 1} of $totalPages",
+                  style: const TextStyle(
+                    color: Color(0xFF0729E8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
           ],
@@ -2177,8 +2216,8 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
             icon: Icon(Icons.ios_share_rounded, color: appBarTextColor, size: 24),
             onPressed: () {
               final shareUrl = "${ApiConfig.baseUrl}/share/post/${widget.postId}";
-              final deepLink = "ryitu://post/${widget.postId}";
-              Share.share("Check out this story on Ryitu: '${widget.postTitle}'\n\nRead here: $shareUrl\nOpen in App: $deepLink");
+              final deepLink = "Ritpen://post/${widget.postId}";
+              Share.share("Check out this story on Ritpen: '${widget.postTitle}'\n\nRead here: $shareUrl\nOpen in App: $deepLink");
             },
           ),
           const SizedBox(width: 8),
@@ -2205,7 +2244,7 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
                     final page = widget.pages[index];
 
                     return Container(
-                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                       decoration: BoxDecoration(
                         color: cardBg,
                         borderRadius: BorderRadius.circular(24),
@@ -2305,59 +2344,6 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
                       ),
                     );
                   },
-                ),
-                Positioned(
-                  bottom: 20,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: () => _showPageGridBottomSheet(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: cardBg.withOpacity(0.95),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                          border: Border.all(
-                            color: appBarTextColor.withOpacity(0.1),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.menu_book_rounded,
-                              color: appBarTextColor.withOpacity(0.7),
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              "${_currentPage + 1} of $totalPages",
-                              style: TextStyle(
-                                color: appBarTextColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(
-                              Icons.keyboard_arrow_up_rounded,
-                              color: appBarTextColor.withOpacity(0.7),
-                              size: 16,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -2514,7 +2500,7 @@ class _CommentsSheetContentState extends State<CommentsSheetContent> {
     if (text.isEmpty) return;
 
     final parentId = _replyingToComment != null ? _replyingToComment!['_id']?.toString() : null;
-    final myName = _currentUsername.isNotEmpty ? _currentUsername : "Ryitu User";
+    final myName = _currentUsername.isNotEmpty ? _currentUsername : "Ritpen User";
 
     final tempComment = <String, dynamic>{
       "_id": "temp_${DateTime.now().millisecondsSinceEpoch}",

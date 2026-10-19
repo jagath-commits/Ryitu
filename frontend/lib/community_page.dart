@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -107,9 +107,9 @@ class _CommunitiesListPageState extends State<CommunitiesListPage> {
     final name = comm['name'] ?? 'Community';
     final desc = comm['description'] ?? '';
     final shareUrl = "${ApiConfig.baseUrl}/share/community/$commId";
-    final appUrl = "ryitu://community/$commId";
-    final text = '🌟 Join the "$name" community on Ryitu!\n\n$desc\n\nTap link to open in app:\n$shareUrl\n(or $appUrl)';
-    Share.share(text, subject: 'Join $name on Ryitu');
+    final appUrl = "Ritpen://community/$commId";
+    final text = '🌟 Join the "$name" community on Ritpen!\n\n$desc\n\nTap link to open in app:\n$shareUrl\n(or $appUrl)';
+    Share.share(text, subject: 'Join $name on Ritpen');
   }
 
   List<Map<String, dynamic>> get _filteredCommunities {
@@ -869,9 +869,9 @@ class _CommunityPageState extends State<CommunityPage> {
     final commName = _community?['name'] ?? widget.communityName ?? 'Community';
     final description = _community?['description'] ?? '';
     final shareUrl = "${ApiConfig.baseUrl}/share/community/$commId";
-    final appUrl = "ryitu://community/$commId";
-    final shareText = '🌟 Join the "$commName" community on Ryitu!\n\n$description\n\nTap link to open in app:\n$shareUrl\n(or $appUrl)';
-    Share.share(shareText, subject: 'Join $commName Community on Ryitu');
+    final appUrl = "Ritpen://community/$commId";
+    final shareText = '🌟 Join the "$commName" community on Ritpen!\n\n$description\n\nTap link to open in app:\n$shareUrl\n(or $appUrl)';
+    Share.share(shareText, subject: 'Join $commName Community on Ritpen');
   }
 
   void _openAddMembersModal() {

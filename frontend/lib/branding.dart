@@ -24,7 +24,7 @@ class AppLogo extends StatelessWidget {
         ),
         SizedBox(height: height * 0.1),
         Text(
-          'Ryitu',
+          'Ritpen',
           style: TextStyle(
             fontFamily: 'Roboto',
             fontSize: fontSize,

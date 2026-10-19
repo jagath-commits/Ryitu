@@ -3,9 +3,9 @@ class ApiConfig {
     'API_BASE_URL',
   );
 
-  // 🔥 Set to true for local testing on mobile phone (via Wi-Fi / LAN)
-  // Set to false to switch back to deployed Render production backend
-  static const bool useLocalBackend = true;
+  // Set to true for local testing on mobile phone (via Wi-Fi / LAN)
+  // Set to false to use the deployed production backend
+  static const bool useLocalBackend = false;
 
   // Your PC's Local Network IPv4 Address on Wi-Fi/Ethernet:
   static const String localBaseUrl = 'http://192.168.29.182:3001';
