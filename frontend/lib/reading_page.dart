@@ -348,8 +348,10 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
           maxChildSize: 0.92,
           minChildSize: 0.3,
           builder: (_, scrollCtrl) {
-            return Column(
-              children: [
+            return SafeArea(
+              top: false,
+              child: Column(
+                children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Row(
@@ -460,9 +462,10 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                         ),
                 ),
               ],
-            );
-          },
-        );
+            ),
+          );
+        },
+      );
       },
     );
   }
@@ -611,9 +614,11 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Column(
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -719,8 +724,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                 ),
             ],
           ),
-        );
-      },
+        ),
+      );
+    },
     );
   }
 
@@ -735,9 +741,11 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-              child: SingleChildScrollView(
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1032,8 +1040,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-            );
-          },
+            ),
+          );
+        },
         );
       },
     );
@@ -1104,177 +1113,296 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       );
     }
 
-    return Scaffold(
-      backgroundColor: _themeBgColor,
-      appBar: AppBar(
+    final bool isDarkTheme = _theme == ReaderTheme.black || _theme == ReaderTheme.dark;
+    final systemOverlay = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDarkTheme ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDarkTheme ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: isDarkTheme ? Brightness.light : Brightness.dark,
+      systemNavigationBarContrastEnforced: false,
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: systemOverlay,
+      child: Scaffold(
         backgroundColor: _themeBgColor,
-        elevation: 0,
-        foregroundColor: _themeTextColor,
-        title: Column(
-          children: [
-            Text(
-              widget.bookTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: _themeTextColor,
-              ),
-            ),
-            // Tap page count → open Table of Contents
-            GestureDetector(
-              onTap: _showTocModal,
-              child: Text(
-                'Page $_currentPage of $_totalPages${_zoomScale > 1.05 ? " • ${(_zoomScale * 100).toInt()}%" : ""}',
+        appBar: AppBar(
+          backgroundColor: _themeBgColor,
+          elevation: 0,
+          foregroundColor: _themeTextColor,
+          title: Column(
+            children: [
+              Text(
+                widget.bookTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.brand,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _themeTextColor,
                 ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isBookmarked
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
-              color: _isBookmarked ? AppColors.brand : _themeTextColor,
-            ),
-            tooltip: 'Bookmark Page',
-            onPressed: _toggleBookmark,
-          ),
-          IconButton(
-            icon: const Icon(Icons.bookmarks_outlined),
-            tooltip: 'All Bookmarks',
-            onPressed: _showBookmarksModal,
-          ),
-          IconButton(
-            icon: const Icon(Icons.format_list_bulleted_rounded),
-            tooltip: 'Table of Contents (உள்ளடக்கம்)',
-            onPressed: _showTocModal,
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune_rounded),
-            tooltip: 'Reading Settings',
-            onPressed: _showSettingsModal,
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // ── Main scrollable content ──
-          InteractiveViewer(
-            scaleEnabled: true,
-            panEnabled: true,
-            minScale: 0.8,
-            maxScale: 3.0,
-            onInteractionUpdate: (details) {
-              if ((details.scale - _zoomScale).abs() > 0.05) {
-                setState(() {
-                  _zoomScale = details.scale;
-                });
-              }
-            },
-            child: GestureDetector(
-              onHorizontalDragEnd: (details) {
-                if (details.primaryVelocity != null) {
-                  if (details.primaryVelocity! < -200) {
-                    // Swipe left -> Next Page
-                    if (_currentPage < _totalPages) _goToPage(_currentPage + 1);
-                  } else if (details.primaryVelocity! > 200) {
-                    // Swipe right -> Prev Page
-                    if (_currentPage > 1) _goToPage(_currentPage - 1);
-                  }
-                }
-              },
-              child: Container(
-                width: double.infinity,
-                height: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
-                ),
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Book Page Card
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: _theme == ReaderTheme.black
-                              ? const Color(0xFF111111)
-                              : _theme == ReaderTheme.dark
-                              ? const Color(0xFF1E293B)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 16,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  widget.author,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _themeTextColor.withOpacity(0.5),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.brand.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    'Page $_currentPage',
-                                    style: const TextStyle(
-                                      color: AppColors.brand,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            if (_getPageContent(_currentPage).trim().isNotEmpty)
-                              Text(
-                                _getPageContent(_currentPage),
-                                style: _getAppliedTextStyle(),
-                                textAlign: TextAlign.justify,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+              // Tap page count → open Table of Contents
+              GestureDetector(
+                onTap: _showTocModal,
+                child: Text(
+                  'Page $_currentPage of $_totalPages${_zoomScale > 1.05 ? " • ${(_zoomScale * 100).toInt()}%" : ""}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.brand,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ], // Stack children
-      ), // Stack / body
+          actions: [
+            IconButton(
+              icon: Icon(
+                _isBookmarked
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+                color: _isBookmarked ? AppColors.brand : _themeTextColor,
+              ),
+              tooltip: 'Bookmark Page',
+              onPressed: _toggleBookmark,
+            ),
+            IconButton(
+              icon: const Icon(Icons.bookmarks_outlined),
+              tooltip: 'All Bookmarks',
+              onPressed: _showBookmarksModal,
+            ),
+            IconButton(
+              icon: const Icon(Icons.format_list_bulleted_rounded),
+              tooltip: 'Table of Contents (உள்ளடக்கம்)',
+              onPressed: _showTocModal,
+            ),
+            IconButton(
+              icon: const Icon(Icons.tune_rounded),
+              tooltip: 'Reading Settings',
+              onPressed: _showSettingsModal,
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            // ── Main scrollable content ──
+            InteractiveViewer(
+              scaleEnabled: true,
+              panEnabled: true,
+              minScale: 0.8,
+              maxScale: 3.0,
+              onInteractionUpdate: (details) {
+                if ((details.scale - _zoomScale).abs() > 0.05) {
+                  setState(() {
+                    _zoomScale = details.scale;
+                  });
+                }
+              },
+              child: GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  if (details.primaryVelocity != null) {
+                    if (details.primaryVelocity! < -200) {
+                      // Swipe left -> Next Page
+                      if (_currentPage < _totalPages) _goToPage(_currentPage + 1);
+                    } else if (details.primaryVelocity! > 200) {
+                      // Swipe right -> Prev Page
+                      if (_currentPage > 1) _goToPage(_currentPage - 1);
+                    }
+                  }
+                },
+                child: Builder(
+                  builder: (scrollContext) {
+                    final insets = MediaQuery.paddingOf(scrollContext);
+                    return Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      padding: EdgeInsets.only(
+                        left: 20 + insets.left,
+                        right: 20 + insets.right,
+                        top: 16,
+                        bottom: 16,
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Book Page Card
+                            Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: _theme == ReaderTheme.black
+                                    ? const Color(0xFF111111)
+                                    : _theme == ReaderTheme.dark
+                                    ? const Color(0xFF1E293B)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        widget.author,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: _themeTextColor.withOpacity(0.5),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.brand.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          'Page $_currentPage',
+                                          style: const TextStyle(
+                                            color: AppColors.brand,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Divider(),
+                                  const SizedBox(height: 16),
+                                  if (_getPageContent(_currentPage).trim().isNotEmpty)
+                                    Text(
+                                      _getPageContent(_currentPage),
+                                      style: _getAppliedTextStyle(),
+                                      textAlign: TextAlign.justify,
+                                    ),
+                                ],
+                              ),
+                            ),
+                            // Safe space so bottom text is never hidden behind bottom controls bar
+                            SizedBox(height: 110 + insets.bottom),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // ── Page controls bar: pinned at screen bottom, always above system nav ──
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Builder(
+                builder: (ctx) {
+                  final insets = MediaQuery.paddingOf(ctx);
+                  return Container(
+                    padding: EdgeInsets.fromLTRB(
+                      12 + insets.left,
+                      8,
+                      12 + insets.right,
+                      8 + insets.bottom,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _themeBgColor.withOpacity(0.97),
+                      border: Border(
+                        top: BorderSide(
+                          color: _themeTextColor.withOpacity(0.12),
+                          width: 1,
+                        ),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, -3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // "Page 1 of 28" — always visible, tap to open TOC
+                        GestureDetector(
+                          onTap: _showTocModal,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              '$_currentPage of $_totalPages',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.brand,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
+                              color: _currentPage > 1 ? AppColors.brand : Colors.grey.shade400,
+                              onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+                              padding: const EdgeInsets.all(8),
+                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                            ),
+                            Expanded(
+                              child: SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                                  trackHeight: 4,
+                                ),
+                                child: Slider(
+                                  value: _currentPage.toDouble().clamp(
+                                    1.0,
+                                    _totalPages > 0 ? _totalPages.toDouble() : 1.0,
+                                  ),
+                                  min: 1,
+                                  max: _totalPages > 0 ? _totalPages.toDouble() : 1.0,
+                                  divisions: _totalPages > 1 ? _totalPages - 1 : 1,
+                                  activeColor: AppColors.brand,
+                                  inactiveColor: AppColors.brand.withOpacity(0.15),
+                                  onChanged: _totalPages > 1 ? (val) => _goToPage(val.round()) : null,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20),
+                              color: _currentPage < _totalPages ? AppColors.brand : Colors.grey.shade400,
+                              onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
+                              padding: const EdgeInsets.all(8),
+                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ], // Stack children
+        ), // Stack / body
+      ), // Scaffold
     ); // Scaffold
   }
 }

@@ -14,7 +14,8 @@ class AppLogo extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ClipOval(
+        ClipRRect(
+          borderRadius: BorderRadius.circular(height * 0.18),
           child: Image.asset(
             'assets/images/ryitu_logo_round.png',
             width: height * 0.75,
@@ -40,31 +41,36 @@ class AppLogo extends StatelessWidget {
 
 class PoweredByBadge extends StatelessWidget {
   final double height;
+  final bool showLabel;
 
-  const PoweredByBadge({super.key, this.height = 48});
+  const PoweredByBadge({
+    super.key,
+    this.height = 42,
+    this.showLabel = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'Powered by',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.black.withValues(alpha: 0.4),
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
+        if (showLabel) ...[
+          Text(
+            'POWERED BY',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.black.withValues(alpha: 0.35),
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2.0,
+              fontFamily: 'Roboto',
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'CodeRead',
-          style: TextStyle(
-            fontSize: height * 0.45,
-            fontWeight: FontWeight.w800,
-            color: Colors.black.withValues(alpha: 0.55),
-          ),
+          const SizedBox(height: 8),
+        ],
+        Image.asset(
+          'assets/images/coderead_logo.png',
+          height: height,
+          fit: BoxFit.contain,
         ),
       ],
     );

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dmk_project/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,8 +26,10 @@ class PrivacyPolicyPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,6 +127,7 @@ class PrivacyPolicyPage extends StatelessWidget {
             const SizedBox(height: 20),
           ],
         ),
+      ),
       ),
     );
   }
@@ -248,8 +251,10 @@ class TermsConditionsPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,6 +313,7 @@ class TermsConditionsPage extends StatelessWidget {
             const SizedBox(height: 20),
           ],
         ),
+      ),
       ),
     );
   }

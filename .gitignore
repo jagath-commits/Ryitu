@@ -72,3 +72,20 @@ desktop.ini
 # Android heap dumps
 *.hprof
 android/java_pid*.hprof
+
+# Uploaded User & Media Files
+backend/uploads/**
+!backend/uploads/**/.gitkeep
+uploads/**
+!uploads/**/.gitkeep
+
+# Sensitive Firebase Service Account Keys & Secrets
+*service-account*.json
+firebase-service-account.json
+backend/firebase-service-account.json
+
+# Development & Scratch Scripts
+frontend/tool/
+*.tmp
+*.bak
+

@@ -20,6 +20,119 @@ abstract final class AppRadius {
   static const xl = 24.0;
 }
 
+/// Android App Default Font Settings:
+/// - Default app font: Roboto, System default
+/// - App title / Toolbar: Roboto Medium 20sp
+/// - Page heading: Roboto Medium 20–24sp
+/// - Subheading: Roboto Medium 16–18sp
+/// - Body / Paragraph: Roboto Regular 14–16sp
+/// - Button text: Roboto Medium 14sp
+/// - Caption / Helper text: Roboto Regular 12sp
+/// - Bottom navigation label: Roboto Medium 12sp
+abstract final class AppTypography {
+  static const String fontFamily = 'Roboto';
+
+  /// Default app font - System default
+  static const TextStyle defaultFont = TextStyle(
+    fontFamily: fontFamily,
+    fontWeight: FontWeight.w400,
+  );
+
+  /// App title / Toolbar: Roboto Medium 20sp
+  static const TextStyle appTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 20,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textPrimary,
+    letterSpacing: -0.2,
+  );
+
+  /// Page heading: Roboto Medium 20–24sp (default: 22sp)
+  static const TextStyle pageHeading = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 22,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textPrimary,
+    letterSpacing: -0.2,
+  );
+
+  /// Page heading (20sp)
+  static const TextStyle pageHeading20 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 20,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textPrimary,
+    letterSpacing: -0.2,
+  );
+
+  /// Page heading (24sp)
+  static const TextStyle pageHeading24 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 24,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textPrimary,
+    letterSpacing: -0.2,
+  );
+
+  /// Subheading: Roboto Medium 16–18sp (default: 16sp)
+  static const TextStyle subheading = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textPrimary,
+  );
+
+  /// Subheading (18sp)
+  static const TextStyle subheading18 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 18,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textPrimary,
+  );
+
+  /// Body / Paragraph: Roboto Regular 14–16sp (default: 14sp)
+  static const TextStyle body = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textPrimary,
+    height: 1.4,
+  );
+
+  /// Body / Paragraph (16sp)
+  static const TextStyle body16 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textPrimary,
+    height: 1.4,
+  );
+
+  /// Button text: Roboto Medium 14sp
+  static const TextStyle button = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.1,
+  );
+
+  /// Caption / Helper text: Roboto Regular 12sp
+  static const TextStyle caption = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textSecondary,
+    height: 1.3,
+  );
+
+  /// Bottom navigation label: Roboto Medium 12sp
+  static const TextStyle bottomNavLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+  );
+}
+
 abstract final class AppTheme {
   static ThemeData get light {
     const colorScheme = ColorScheme.light(
@@ -33,8 +146,37 @@ abstract final class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.scaffold,
-      // Use Android system font (Roboto) — no external font package needed
-      fontFamily: 'Roboto',
+      // Default app font: Roboto, System default
+      fontFamily: AppTypography.fontFamily,
+      textTheme: const TextTheme(
+        // Page heading: Roboto Medium 20–24sp
+        headlineLarge: AppTypography.pageHeading24,
+        headlineMedium: AppTypography.pageHeading,
+        headlineSmall: AppTypography.pageHeading20,
+
+        // App title / Toolbar: Roboto Medium 20sp
+        titleLarge: AppTypography.appTitle,
+
+        // Subheading: Roboto Medium 16–18sp
+        titleMedium: AppTypography.subheading18,
+        titleSmall: AppTypography.subheading,
+
+        // Body / Paragraph: Roboto Regular 14–16sp
+        bodyLarge: AppTypography.body16,
+        bodyMedium: AppTypography.body,
+
+        // Caption / Helper text: Roboto Regular 12sp
+        bodySmall: AppTypography.caption,
+
+        // Button text: Roboto Medium 14sp
+        labelLarge: AppTypography.button,
+
+        // Bottom navigation label: Roboto Medium 12sp
+        labelMedium: AppTypography.bottomNavLabel,
+
+        // Caption / Helper text: Roboto Regular 12sp
+        labelSmall: AppTypography.caption,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
@@ -45,13 +187,8 @@ abstract final class AppTheme {
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.dark,
         ),
-        titleTextStyle: TextStyle(
-          fontFamily: 'Roboto',
-          color: AppColors.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.2,
-        ),
+        // App title / Toolbar: Roboto Medium 20sp
+        titleTextStyle: AppTypography.appTitle,
         iconTheme: IconThemeData(color: AppColors.textPrimary, size: 22),
       ),
       cardTheme: CardThemeData(
@@ -79,12 +216,13 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.sm),
           borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
         ),
-        hintStyle: const TextStyle(
-          fontFamily: 'Roboto',
+        // Body / Paragraph: Roboto Regular 14sp
+        hintStyle: AppTypography.body.copyWith(
           color: AppColors.textSecondary,
-          fontWeight: FontWeight.w500,
-          fontSize: 14,
         ),
+        // Caption / Helper text: Roboto Regular 12sp
+        helperStyle: AppTypography.caption,
+        errorStyle: AppTypography.caption,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -95,21 +233,45 @@ abstract final class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
-          textStyle: const TextStyle(
-            fontFamily: 'Roboto',
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
-          ),
+          // Button text: Roboto Medium 14sp
+          textStyle: AppTypography.button,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.brand,
-          textStyle: const TextStyle(
-            fontFamily: 'Roboto',
-            fontWeight: FontWeight.w700,
-          ),
+          // Button text: Roboto Medium 14sp
+          textStyle: AppTypography.button,
         ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.brand,
+          side: const BorderSide(color: AppColors.border),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          // Button text: Roboto Medium 14sp
+          textStyle: AppTypography.button,
+        ),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        selectedItemColor: AppColors.brand,
+        unselectedItemColor: AppColors.textSecondary,
+        // Bottom navigation label: Roboto Medium 12sp
+        selectedLabelStyle: AppTypography.bottomNavLabel,
+        unselectedLabelStyle: AppTypography.bottomNavLabel,
+        type: BottomNavigationBarType.fixed,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.brand.withValues(alpha: 0.1),
+        // Bottom navigation label: Roboto Medium 12sp
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          return AppTypography.bottomNavLabel;
+        }),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -128,8 +290,8 @@ abstract final class AppTheme {
         backgroundColor: AppColors.chipBg,
         selectedColor: AppColors.brand,
         labelStyle: const TextStyle(
-          fontFamily: 'Roboto',
-          fontWeight: FontWeight.w600,
+          fontFamily: AppTypography.fontFamily,
+          fontWeight: FontWeight.w500,
           fontSize: 13,
         ),
         shape: RoundedRectangleBorder(
@@ -182,14 +344,11 @@ Widget appSearchField({
     child: TextField(
       controller: controller,
       onChanged: onChanged,
-      style: const TextStyle(
-        fontFamily: 'Roboto',
-        fontWeight: FontWeight.w600,
-        fontSize: 14,
-        color: AppColors.textPrimary,
-      ),
+      // Body / Paragraph: Roboto Regular 14sp
+      style: AppTypography.body,
       decoration: InputDecoration(
         hintText: hint,
+        hintStyle: AppTypography.body.copyWith(color: AppColors.textSecondary),
         prefixIcon: prefixIcon ??
             const Icon(Icons.search_rounded, color: AppColors.brand),
         border: InputBorder.none,
@@ -223,24 +382,16 @@ Widget appEmptyState({
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: 'Roboto',
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
+            // Page heading / Subheading: Roboto Medium 20sp
+            style: AppTypography.pageHeading20,
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 8),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: 14,
-                color: AppColors.textSecondary,
-                height: 1.4,
-              ),
+              // Caption / Helper text: Roboto Regular 12sp
+              style: AppTypography.caption,
             ),
           ],
         ],

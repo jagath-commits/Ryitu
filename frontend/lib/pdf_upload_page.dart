@@ -214,8 +214,10 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
       appBar: AppBar(
         title: Text(widget.communityName != null ? 'Upload PDF to ${widget.communityName}' : 'Upload PDF Book'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -375,6 +377,7 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

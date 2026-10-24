@@ -1,4 +1,5 @@
 import 'package:dmk_project/app_theme.dart';
+import 'package:dmk_project/drafts_manager.dart';
 import 'package:dmk_project/home.dart';
 import 'package:dmk_project/write.dart' deferred as write;
 import 'package:flutter/material.dart';
@@ -63,12 +64,13 @@ class AppBottomNavBar extends StatelessWidget {
                 onTap: () async {
                   await write.loadLibrary();
                   if (!context.mounted) return;
-                  Navigator.push(
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => write.WritePage(category: '4'),
                     ),
                   );
+                  DraftsManager.instance.notifyDraftsChanged();
                 },
               ),
               _NavItem(
@@ -113,9 +115,8 @@ class _NavItem extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+            // Bottom navigation label: Roboto Medium 12sp
+            style: AppTypography.bottomNavLabel.copyWith(
               color: color,
             ),
           ),

@@ -107,5 +107,8 @@ const postSchema = new mongoose.Schema(
 
 // Index for search
 postSchema.index({ title: 'text', caption: 'text', hashtags: 'text' });
+postSchema.index({ createdAt: -1 });
+postSchema.index({ categoryId: 1, createdAt: -1 });
+postSchema.index({ communityId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Post', postSchema);

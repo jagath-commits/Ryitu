@@ -3,6 +3,7 @@ import 'package:dmk_project/home.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dmk_project/services/notification_service.dart';
 
 class OtpPage extends StatefulWidget {
   final String phone;
@@ -56,6 +57,8 @@ class _OtpPageState extends State<OtpPage> {
     await prefs.setString('user_id', cleanPhone);
     await prefs.setString('user_mobile', cleanPhone);
 
+    NotificationService().syncFcmToken(cleanPhone);
+
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
@@ -78,7 +81,7 @@ class _OtpPageState extends State<OtpPage> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

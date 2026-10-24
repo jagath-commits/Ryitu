@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1051243585483",
+    "project_id": "ritpen-80e28",
+    "storage_bucket": "ritpen-80e28.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1051243585483:android:ce72b87ed753c2a258204e",
+        "android_client_info": {
+          "package_name": "com.ritpen"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTB47jKPtriZLEmSC1sVPG5k7OAyj5qGY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

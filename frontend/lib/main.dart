@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:app_links/app_links.dart';
 import 'package:dmk_project/app_theme.dart';
@@ -10,11 +10,20 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dmk_project/notification_post_page.dart';
 import 'package:dmk_project/community_page.dart';
+import 'package:dmk_project/services/notification_service.dart';
+import 'package:dmk_project/services/app_update_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase.initializeApp error: $e');
+  }
 
   // Prevent silent blank screen in release APK by capturing framework errors
   FlutterError.onError = (details) {
@@ -30,6 +39,7 @@ Future<void> main() async {
       // Edge-to-edge: nav bar is transparent, app draws behind it
       systemNavigationBarColor: Colors.transparent,
       systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
       systemNavigationBarContrastEnforced: false,
     ),
   );
@@ -60,15 +70,27 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   AppLinks? _appLinks;
   StreamSubscription<Uri>? _sub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initDeepLinks());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initDeepLinks();
+      NotificationService().initialize(navigatorKey: navigatorKey);
+      AppUpdateService().checkUpdate(navigatorKey.currentContext);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      AppUpdateService().checkUpdate(navigatorKey.currentContext);
+    }
   }
 
   Future<void> _initDeepLinks() async {
@@ -152,6 +174,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sub?.cancel();
     super.dispose();
   }
@@ -199,10 +222,14 @@ class _MyAppState extends State<MyApp> {
             ),
           );
         };
+        final mediaQuery = MediaQuery.of(context);
         return MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: const TextScaler.linear(1.0)),
+          data: mediaQuery.copyWith(
+            textScaler: mediaQuery.textScaler.clamp(
+              minScaleFactor: 0.85,
+              maxScaleFactor: 1.30,
+            ),
+          ),
           child: child ?? const SizedBox.shrink(),
         );
       },

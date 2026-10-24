@@ -124,19 +124,30 @@ const updateProfile = async (req, res, next) => {
     if (email) updateData.email = email;
     if (constituency) updateData.constituency = constituency;
     if (mobileNumber) updateData.mobileNumber = mobileNumber;
-    if (req.file) {
+    const isRemoveImage = req.body.remove_image === 'true' || req.body.remove_image === true || req.body.removeImage === 'true';
+
+    if (isRemoveImage) {
+      updateData.profileImage = '';
+    } else if (req.file) {
       updateData.profileImage = req.file.filename;
     }
 
     if (user) {
-      Object.assign(user, updateData);
-      await user.save();
+      user = await User.findByIdAndUpdate(
+        user._id,
+        { $set: updateData },
+        { new: true, runValidators: false }
+      );
 
       // Maintain database data consistency across posts and drafts
       try {
         const postUpdates = {};
         if (username) postUpdates.username = username;
-        if (req.file) postUpdates.profile_image = req.file.filename;
+        if (isRemoveImage) {
+          postUpdates.profile_image = '';
+        } else if (req.file) {
+          postUpdates.profile_image = req.file.filename;
+        }
         if (Object.keys(postUpdates).length > 0) {
           await Post.updateMany(
             {
@@ -167,16 +178,24 @@ const updateProfile = async (req, res, next) => {
     } else {
       // Create user if not present so saving profile never fails
       const fallbackId = userId || 'USR00000001';
-      user = await User.create({
-        user_id: fallbackId,
-        username: username || 'Ryitu User',
-        name: username || 'Ryitu User',
-        email: email || `${fallbackId}@app.local`,
-        mobileNumber: mobileNumber || '',
-        constituency: constituency || '',
-        profileImage: req.file ? req.file.filename : '',
-        password: 'defaultPassword123'
-      });
+      user = await User.findOneAndUpdate(
+        { user_id: fallbackId },
+        {
+          $setOnInsert: {
+            user_id: fallbackId,
+            password: 'defaultPassword123'
+          },
+          $set: {
+            username: username || 'Ryitu User',
+            name: username || 'Ryitu User',
+            email: email || `${fallbackId}@app.local`,
+            mobileNumber: mobileNumber || '',
+            constituency: constituency || '',
+            ...(req.file ? { profileImage: req.file.filename } : {})
+          }
+        },
+        { upsert: true, new: true, runValidators: false }
+      );
     }
 
     const savedProfileImage = user.profileImage || '';

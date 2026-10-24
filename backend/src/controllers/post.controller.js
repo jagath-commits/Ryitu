@@ -2,11 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { PDFParse } = require('pdf-parse');
+const { PDFDocument } = require('pdf-lib');
 const { cleanExtractedText } = require('../utils/textCleaner.util');
+const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
 const Draft = require('../models/Draft');
 const User = require('../models/User');
+const notificationService = require('../services/notification.service');
 const { storageService } = require('../services/storage.service');
 const { successResponse, errorResponse } = require('../utils/response.util');
 
@@ -111,21 +114,33 @@ const extractDocument = async (req, res, next) => {
         await parser.load();
         totalPages = parser.doc ? parser.doc.numPages : 0;
 
-        // 1. Extract text page-by-page
-        const textResult = await parser.getText({
-          pageJoiner: ''
-        });
+        // Fallback/verify page count with pdf-lib to prevent 1-page undercount
+        try {
+          const pdfDoc = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
+          const docPages = pdfDoc.getPageCount();
+          if (docPages && docPages > totalPages) {
+            totalPages = docPages;
+          }
+        } catch (_) {}
 
-        const pagesArray = (textResult && Array.isArray(textResult.pages)) ? textResult.pages : [];
-        if (textResult && textResult.total) {
-          totalPages = Math.max(totalPages, textResult.total);
-        } else if (pagesArray.length > 0) {
-          totalPages = Math.max(totalPages, pagesArray.length);
+        // 1. Attempt bulk page-text extraction safely
+        let pagesArray = [];
+        try {
+          const textResult = await parser.getText({ pageJoiner: '' });
+          if (textResult && Array.isArray(textResult.pages) && textResult.pages.length > 0) {
+            pagesArray = textResult.pages;
+          }
+          if (textResult && textResult.total && textResult.total > totalPages) {
+            totalPages = textResult.total;
+          }
+        } catch (bulkErr) {
+          console.warn('[PDF Extract] Bulk getText fallback to per-page:', bulkErr.message);
         }
-        if (totalPages === 0) totalPages = 1;
+
+        if (totalPages === 0) totalPages = pagesArray.length || 1;
         totalPages = Math.min(totalPages, 5000);
 
-        // 2. Extract embedded images and diagrams intelligently
+        // 2. Extract embedded images intelligently (fast raster extraction)
         const imagesByPage = new Map();
 
         const processImagePages = async (pages) => {
@@ -159,7 +174,6 @@ const extractDocument = async (req, res, next) => {
         };
 
         if (totalPages <= 30) {
-          // Documents <= 30 pages (e.g. standard English articles, short documents): extract all pages directly
           try {
             const imgResult = await parser.getImage({ imageThreshold: 20, imageBuffer: true });
             if (imgResult && Array.isArray(imgResult.pages)) {
@@ -169,15 +183,14 @@ const extractDocument = async (req, res, next) => {
             console.warn('[PDF Extract] Image extraction warning:', imgErr.message);
           }
         } else {
-          // Large documents (e.g. books up to 5000 pages):
-          // Identify candidate pages: first 25 pages (covers, frontispiece, plates),
-          // sparse text pages (< 120 chars: artwork, diagrams, photos), and last 5 pages
+          // Large documents: extract images for first 30 pages (covers/plates) + sparse pages
           const candidateSet = new Set();
-          const firstPagesCount = Math.min(25, totalPages);
+          const firstPagesCount = Math.min(30, totalPages);
           for (let p = 1; p <= firstPagesCount; p++) {
             candidateSet.add(p);
           }
-          for (let p = 1; p <= totalPages; p++) {
+          // Also sample pages throughout the doc that look like image/figure plates (sparse text)
+          for (let p = 31; p <= totalPages; p += 3) {
             const pageText = (pagesArray.length >= p && pagesArray[p - 1]) ? (pagesArray[p - 1].text || '').trim() : '';
             if (pageText.length < 120) {
               candidateSet.add(p);
@@ -278,9 +291,6 @@ const extractDocument = async (req, res, next) => {
 
         // Combine text for backward compatibility
         extractedText = extractedPages.map(p => p.text).filter(t => t.length > 0).join('\n\n');
-        if (!extractedText && textResult && typeof textResult.text === 'string') {
-          extractedText = cleanExtractedText(textResult.text);
-        }
       } catch (err) {
         console.warn('[PDF Extract] PDF parsing exception:', err.message);
       } finally {
@@ -413,7 +423,7 @@ const getPosts = async (req, res, next) => {
   try {
     try {
       const { seedSampleCommunitiesIfNeeded } = require('./community.controller');
-      await seedSampleCommunitiesIfNeeded();
+      seedSampleCommunitiesIfNeeded().catch(() => {});
     } catch (_) {}
 
     const page = parseInt(req.query.page, 10) || 1;
@@ -447,7 +457,8 @@ const getPosts = async (req, res, next) => {
     const posts = await Post.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
     // Resolve missing or 'Anonymous' usernames from User collection
     const userIdsToLookup = [];
@@ -545,6 +556,50 @@ const getPosts = async (req, res, next) => {
   }
 };
 
+// Helper to clean and autocorrect Tamil spelling and typography across all post/draft page blocks
+const cleanContentPages = (content) => {
+  if (!content) return content;
+  if (Array.isArray(content)) {
+    return content.map(page => {
+      if (!page || typeof page !== 'object') return page;
+      if (Array.isArray(page.blocks)) {
+        return {
+          ...page,
+          blocks: page.blocks.map(b => {
+            if (b && b.type === 'text' && typeof b.text === 'string' && b.text.trim()) {
+              return { ...b, text: cleanExtractedText(b.text) };
+            }
+            return b;
+          })
+        };
+      }
+      return page;
+    });
+  } else if (content && typeof content === 'object') {
+    if (Array.isArray(content.pages)) {
+      return {
+        ...content,
+        pages: content.pages.map(page => {
+          if (!page || typeof page !== 'object') return page;
+          if (Array.isArray(page.blocks)) {
+            return {
+              ...page,
+              blocks: page.blocks.map(b => {
+                if (b && b.type === 'text' && typeof b.text === 'string' && b.text.trim()) {
+                  return { ...b, text: cleanExtractedText(b.text) };
+                }
+                return b;
+              })
+            };
+          }
+          return page;
+        })
+      };
+    }
+  }
+  return content;
+};
+
 // 5. Create Post
 const createPost = async (req, res, next) => {
   try {
@@ -565,6 +620,7 @@ const createPost = async (req, res, next) => {
         parsedContent = [];
       }
     }
+    parsedContent = cleanContentPages(parsedContent);
 
     let coverImage = '';
     if (req.files && req.files.cover_image && req.files.cover_image.length > 0) {
@@ -635,8 +691,8 @@ const createPost = async (req, res, next) => {
       user_id: userId,
       username,
       profile_image: profileImage,
-      title: title.trim(),
-      caption: caption ? caption.trim() : '',
+      title: cleanExtractedText(title).trim(),
+      caption: caption ? cleanExtractedText(caption).trim() : '',
       categoryId: 'CAT00000004', // Ryitu
       category: 'Ryitu',
       communityId: finalCommunityId,
@@ -650,6 +706,15 @@ const createPost = async (req, res, next) => {
       pdf_url: req.body.pdf_url || req.body.pdfUrl || '',
       is_pdf: Boolean(req.body.is_pdf || req.body.isPdf),
     });
+
+    // Notify all eligible registered users asynchronously (non-blocking)
+    notificationService.fanOutNewPostNotification({
+      actorId: post.user_id,
+      actorName: post.username,
+      actorImage: post.profile_image,
+      postId: post.post_id || post._id.toString(),
+      postTitle: post.title
+    }).catch(err => console.warn('[Fanout error]:', err.message));
 
     return res.status(201).json({
       success: true,
@@ -773,6 +838,20 @@ const toggleSupport = async (req, res, next) => {
         isSupported = true;
       }
       await post.save();
+
+      // Send like notification to post owner if liked (non-blocking)
+      if (isSupported && post.user_id) {
+        const actorName = req.user ? (req.user.name || req.user.username) : '';
+        const actorImage = req.user ? req.user.profileImage : '';
+        notificationService.createNotification({
+          recipientId: post.user_id,
+          actorId: userId,
+          actorName,
+          actorImage,
+          type: 'post_like',
+          postId: post.post_id || post._id.toString()
+        }).catch(err => console.warn('[Like notification error]:', err.message));
+      }
     }
 
     return successResponse(res, 200, 'Support toggled', {
@@ -894,7 +973,7 @@ const getUserPosts = async (req, res, next) => {
       }
     }
 
-    const posts = await Post.find(query).sort({ createdAt: -1 });
+    const posts = await Post.find(query).sort({ createdAt: -1 }).lean();
 
     const postIds = posts.map(p => p.post_id || p._id.toString());
     const countMap = new Map();
@@ -955,7 +1034,7 @@ const getSavedPosts = async (req, res, next) => {
       ]
     };
 
-    const posts = await Post.find(filter).sort({ createdAt: -1 });
+    const posts = await Post.find(filter).sort({ createdAt: -1 }).lean();
 
     const postIds = posts.map(p => p.post_id || p._id.toString());
     const countMap = new Map();
@@ -1008,7 +1087,7 @@ const getUserDrafts = async (req, res, next) => {
       }
     }
 
-    const drafts = await Draft.find(query).sort({ createdAt: -1 });
+    const drafts = await Draft.find(query).sort({ _id: -1 }).allowDiskUse(true);
     return res.status(200).json({
       success: true,
       data: drafts.map((d) => {
@@ -1194,6 +1273,55 @@ const addComment = async (req, res, next) => {
       replies: []
     };
 
+    // Send comment and reply notifications asynchronously (non-blocking)
+    (async () => {
+      try {
+        const post = await Post.findOne({
+          $or: [
+            { post_id: targetPostId },
+            ...(targetPostId && targetPostId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: targetPostId }] : [])
+          ]
+        });
+
+        if (post && post.user_id) {
+          await notificationService.createNotification({
+            recipientId: post.user_id,
+            actorId: resolvedUserId,
+            actorName: resolvedUsername,
+            actorImage: resolvedProfileImage,
+            type: 'post_comment',
+            postId: post.post_id || post._id.toString(),
+            commentId: comment._id.toString(),
+            commentText: comment.text
+          });
+        }
+
+        // If this is a reply, also notify the parent comment author
+        if (parentId) {
+          const parentComment = await Comment.findById(parentId);
+          if (
+            parentComment &&
+            parentComment.user_id &&
+            parentComment.user_id.toString() !== resolvedUserId.toString() &&
+            (!post || parentComment.user_id.toString() !== post.user_id.toString())
+          ) {
+            await notificationService.createNotification({
+              recipientId: parentComment.user_id,
+              actorId: resolvedUserId,
+              actorName: resolvedUsername,
+              actorImage: resolvedProfileImage,
+              type: 'post_comment',
+              postId: targetPostId,
+              commentId: comment._id.toString(),
+              commentText: comment.text
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[Comment notification error]:', err.message);
+      }
+    })();
+
     return res.status(201).json({
       success: true,
       message: 'Comment added successfully',
@@ -1242,8 +1370,27 @@ const toggleCommentLike = async (req, res, next) => {
 const deleteComment = async (req, res, next) => {
   try {
     const { commentId } = req.params;
-    await Comment.findByIdAndDelete(commentId);
-    await Comment.deleteMany({ parent_comment_id: commentId });
+    const filter = mongoose.Types.ObjectId.isValid(commentId)
+      ? { _id: commentId }
+      : { $or: [{ _id: commentId }, { comment_id: commentId }] };
+
+    const comment = await Comment.findOne(filter);
+    if (comment) {
+      const postId = comment.post_id;
+      const targetId = comment._id.toString();
+      await Comment.deleteOne({ _id: comment._id });
+      await Comment.deleteMany({ parent_comment_id: targetId });
+
+      if (postId) {
+        await Post.findOneAndUpdate(
+          { $or: [{ _id: postId }, { post_id: postId }] },
+          { $inc: { comment_count: -1 } }
+        ).catch(() => {});
+      }
+    } else {
+      await Comment.findByIdAndDelete(commentId).catch(() => {});
+      await Comment.deleteMany({ parent_comment_id: commentId }).catch(() => {});
+    }
     return successResponse(res, 200, 'Comment deleted successfully');
   } catch (error) {
     next(error);

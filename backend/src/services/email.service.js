@@ -32,28 +32,66 @@ const sendOtpEmail = async (email) => {
   // Save OTP in memory
   otpStore.set(email.toLowerCase(), { otp, expiresAt });
 
+  const fromAddress = env.EMAIL_FROM || env.EMAIL_USER || 'ryitu.app@gmail.com';
+
   const mailOptions = {
-    from: `"PDF Reader App" <${env.EMAIL_FROM}>`,
+    from: `"Ritpen" <${fromAddress}>`,
     to: email,
-    subject: 'Your OTP - PDF Reader App',
+    replyTo: fromAddress,
+    subject: `Ritpen Verification Code: ${otp}`,
+    text: `Your Ritpen Verification Code is: ${otp}\n\nUse this 6-digit code to reset your account password. This code will expire in 5 minutes.\n\nIf you did not request this verification code, please ignore this email or contact support.\n\n© ${new Date().getFullYear()} Ritpen. All rights reserved.`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-        <div style="background: #4f46e5; padding: 24px; text-align: center;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 22px;">PDF Reader App</h1>
-        </div>
-        <div style="padding: 32px;">
-          <h2 style="color: #1f2937; margin-top: 0;">Your OTP Code</h2>
-          <p style="color: #6b7280;">Use the following One-Time Password to continue. It is valid for <strong>5 minutes</strong>.</p>
-          <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-            <span style="font-size: 40px; font-weight: bold; letter-spacing: 10px; color: #4f46e5;">${otp}</span>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Ritpen Verification Code</title>
+      </head>
+      <body style="margin: 0; padding: 20px; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);">
+          <!-- Header Banner -->
+          <div style="background: linear-gradient(135deg, #0729E8 0%, #041CA1 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 0.5px;">Ritpen</h1>
+            <p style="color: rgba(255, 255, 255, 0.85); margin: 6px 0 0 0; font-size: 14px;">Password Reset Verification</p>
           </div>
-          <p style="color: #9ca3af; font-size: 13px;">If you did not request this OTP, please ignore this email.</p>
+
+          <!-- Body Content -->
+          <div style="padding: 36px 32px;">
+            <h2 style="color: #111827; margin: 0 0 12px 0; font-size: 20px; font-weight: 700;">Verify Your Account</h2>
+            <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
+              We received a request to reset your Ritpen account password. Enter the one-time code below to proceed.
+            </p>
+
+            <!-- OTP Box -->
+            <div style="background: #F0F4FF; border: 2px dashed #0729E8; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+              <span style="font-family: 'Courier New', Courier, monospace; font-size: 42px; font-weight: 800; letter-spacing: 12px; color: #0729E8; display: inline-block; padding-left: 12px;">${otp}</span>
+            </div>
+
+            <p style="color: #6b7280; font-size: 13px; line-height: 1.5; margin: 0 0 8px 0; text-align: center;">
+              ⏳ This code is valid for <strong>5 minutes</strong>.
+            </p>
+            <p style="color: #9ca3af; font-size: 12px; line-height: 1.5; margin: 16px 0 0 0; border-top: 1px solid #f3f4f6; padding-top: 16px;">
+              If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background-color: #f9fafb; padding: 20px 24px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+              © ${new Date().getFullYear()} Ritpen. All rights reserved.
+            </p>
+          </div>
         </div>
-        <div style="background: #f9fafb; padding: 16px; text-align: center;">
-          <p style="color: #9ca3af; font-size: 12px; margin: 0;">© 2026 PDF Reader App. All rights reserved.</p>
-        </div>
-      </div>
-    `
+      </body>
+      </html>
+    `,
+    headers: {
+      'X-Priority': '1',
+      'X-MSMail-Priority': 'High',
+      'Importance': 'high',
+      'X-Mailer': 'Ritpen Auth Mailer'
+    }
   };
 
   await transporter.sendMail(mailOptions);

@@ -20,6 +20,16 @@ class SavedPostsManager extends ChangeNotifier {
     return _savedPostIds.contains(postId);
   }
 
+  void notifyPostDeleted(String postId) {
+    if (postId.isEmpty) return;
+    _savedPostIds.remove(postId);
+    _savedPosts.removeWhere(
+      (p) => (p['post_id'] ?? p['_id'])?.toString() == postId,
+    );
+    notifyListeners();
+    _persist();
+  }
+
   Future<void> init(String? userId) async {
     if (!_initialized) {
       _initialized = true;

@@ -1,4 +1,4 @@
-﻿import 'package:dmk_project/app_theme.dart';
+import 'package:dmk_project/app_theme.dart';
 import 'package:flutter/material.dart';
 
 Future<String?> showCategorySelectionBottomSheet(BuildContext context) async {
@@ -7,12 +7,14 @@ Future<String?> showCategorySelectionBottomSheet(BuildContext context) async {
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (context) {
-      return Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      return SafeArea(
+        top: false,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -54,6 +56,7 @@ Future<String?> showCategorySelectionBottomSheet(BuildContext context) async {
             ),
           ],
         ),
+      ),
       );
     },
   );

@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth.middleware');
 const { uploadProfileImage } = require('../middleware/upload.middleware');
 
 router.post('/register', uploadProfileImage, authController.register);
+router.post('/check-mobile', authController.checkMobile);
 router.post('/login', authController.login);
 router.post('/save-fcm-token', authController.saveFcmToken);
 router.post('/forgot-password', authController.forgotPassword);

@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dmk_project/api_config.dart';
 import 'package:dmk_project/app_theme.dart';
@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dmk_project/forgot_password_page.dart';
+import 'package:dmk_project/services/notification_service.dart';
 
 // ============================================================
 // SINGLE PAGE TABBED PORTAL: SIGN IN / SIGN UP
@@ -100,6 +101,8 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
             );
           }
 
+          NotificationService().syncFcmToken(data["user_id"]?.toString());
+
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (_) => const MainShell()),
@@ -142,6 +145,27 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
     if (password != confirmPassword) {
       showError("Passwords do not match");
       return;
+    }
+
+    setState(() => isLoading = true);
+    try {
+      final res = await http.post(
+        Uri.parse("${ApiConfig.apiBaseUrl}/auth/check-mobile"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"mobileNumber": phone}),
+      );
+      if (!mounted) return;
+      final decoded = jsonDecode(res.body);
+      if (res.statusCode != 200 || decoded['available'] == false) {
+        showError(decoded['message'] ?? "An account with this mobile number already exists. Please Sign In.");
+        return;
+      }
+    } catch (_) {
+      // Continue if offline/network error, backend will validate on submit
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
 
     if (mounted) {
@@ -855,35 +879,21 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
                     // Refined watermark footer
                     Column(
                       children: [
-                        const SizedBox(height: 30),
-                        Text(
-                          "POWERED BY",
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.black.withOpacity(0.3),
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2.0,
-                            fontFamily: 'Roboto',
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 24),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
+                            horizontal: 24,
                             vertical: 14,
                           ),
-                          margin: const EdgeInsets.only(bottom: 10),
+                          margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.4),
+                            color: Colors.white.withOpacity(0.6),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Colors.black.withOpacity(0.03),
+                              color: Colors.black.withOpacity(0.04),
                             ),
                           ),
-                          child: Opacity(
-                            opacity: 0.65,
-                            child: const PoweredByBadge(height: 56),
-                          ),
+                          child: const PoweredByBadge(height: 44, showLabel: true),
                         ),
                       ],
                     ),

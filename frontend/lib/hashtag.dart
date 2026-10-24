@@ -8,6 +8,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dmk_project/saved_posts_manager.dart';
+import 'package:dmk_project/liked_posts_manager.dart';
 
 class HashtagPage extends StatefulWidget {
   const HashtagPage({super.key});
@@ -96,7 +97,7 @@ class _HashtagPageState extends State<HashtagPage> {
                       )
                     : ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + MediaQuery.paddingOf(context).bottom),
                     children: filtered.map((item) {
                           return GestureDetector(
                             onTap: () {
@@ -401,15 +402,16 @@ class _HashtagPostsPageState extends State<HashtagPostsPage> {
             )
           : ListView.builder(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(vertical: 20),
+              padding: EdgeInsets.fromLTRB(0, 20, 0, 20 + MediaQuery.paddingOf(context).bottom),
               itemCount: posts.length,
               itemBuilder: (context, index) {
                 final post = posts[index];
                 final postId = (post['post_id'] ?? post['_id'])?.toString() ?? '';
 
                 return PostContainer(
+                  key: ValueKey('tag_post_${postId}_${post['cover_image'] ?? post['cover_img'] ?? ''}'),
                   post: post,
-                  isLiked: likedPosts.contains(postId),
+                  isLiked: LikedPostsManager.instance.isLiked(postId),
                   onLike: () => toggleLike(postId),
                   isSaved: SavedPostsManager.instance.isSaved(postId),
                   onSave: () => toggleSave(postId),
@@ -514,7 +516,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
                       return SizedBox.expand(
                         child: Container(
-                          margin: const EdgeInsets.fromLTRB(16, 8, 16, 75),
+                          margin: EdgeInsets.fromLTRB(16, 8, 16, 16 + MediaQuery.paddingOf(context).bottom),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFDFBF7),
                             borderRadius: BorderRadius.circular(24),

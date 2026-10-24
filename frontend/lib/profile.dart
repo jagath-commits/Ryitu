@@ -1,11 +1,13 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dmk_project/api_config.dart';
 import 'package:dmk_project/app_theme.dart';
 import 'package:dmk_project/home.dart';
+import 'package:dmk_project/drafts_manager.dart';
 import 'package:dmk_project/saved_posts_manager.dart';
+import 'package:dmk_project/liked_posts_manager.dart';
 import 'package:dmk_project/password_login.dart';
 import 'package:dmk_project/profile1.dart';
 import 'package:dmk_project/write.dart' deferred as write;
@@ -17,21 +19,23 @@ class ProfilePage extends StatefulWidget {
   final String userId;
   final bool isPublicView;
   final String? initialPostId;
+  final VoidCallback? onBackToHome;
 
   const ProfilePage({
     super.key,
     required this.userId,
     this.isPublicView = false,
     this.initialPostId,
+    this.onBackToHome,
   });
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  State<ProfilePage> createState() => ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage>
+class ProfilePageState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
-  static final _baseUrl = ApiConfig.apiBaseUrl;
+  static String get _baseUrl => ApiConfig.apiBaseUrl;
 
   late TabController _tabController;
 
@@ -54,8 +58,11 @@ class _ProfilePageState extends State<ProfilePage>
   @override
   void initState() {
     super.initState();
+    DraftsManager.instance.addListener(_onDraftsChanged);
     SavedPostsManager.instance.addListener(_onSavedChanged);
     SavedPostsManager.instance.init(widget.userId);
+    LikedPostsManager.instance.addListener(_onLikedChanged);
+    LikedPostsManager.instance.init(widget.userId);
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) setState(() {});
@@ -63,13 +70,39 @@ class _ProfilePageState extends State<ProfilePage>
     _loadAll();
   }
 
+  void _onDraftsChanged() {
+    if (mounted) {
+      _fetchDrafts(silent: true);
+    }
+  }
+
+  void reloadProfileData() {
+    if (mounted) {
+      _fetchDrafts(silent: true);
+      _fetchMyPosts();
+    }
+  }
+
   void _onSavedChanged() {
     if (mounted) setState(() {});
   }
 
+  void _onLikedChanged() {
+    if (!mounted) return;
+    if (LikedPostsManager.instance.deletedPostIds.isNotEmpty) {
+      _myPosts.removeWhere((p) {
+        final pid = (p['post_id'] ?? p['_id'])?.toString() ?? '';
+        return LikedPostsManager.instance.deletedPostIds.contains(pid);
+      });
+    }
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    DraftsManager.instance.removeListener(_onDraftsChanged);
     SavedPostsManager.instance.removeListener(_onSavedChanged);
+    LikedPostsManager.instance.removeListener(_onLikedChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -216,6 +249,14 @@ class _ProfilePageState extends State<ProfilePage>
   Future<void> _fetchMyPosts() async {
     setState(() => _loadingPosts = true);
     final posts = await _fetchList('userposts');
+    for (var p in posts) {
+      final pid = (p['post_id'] ?? p['_id'])?.toString() ?? '';
+      if (pid.isNotEmpty) {
+        final isSup = (p['isSupported'] == true || p['isLiked'] == true);
+        final sc = int.tryParse(p['support_count']?.toString() ?? '');
+        LikedPostsManager.instance.syncPost(pid, isLiked: isSup, supportCount: sc);
+      }
+    }
     if (mounted) {
       setState(() {
         _myPosts = posts;
@@ -224,12 +265,11 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
-  Future<void> _fetchDrafts() async {
-    setState(() => _loadingDrafts = true);
-    var drafts = await _fetchList('getdraftposts');
-    if (drafts.isEmpty) {
-      drafts = await _fetchList('draftposts');
+  Future<void> _fetchDrafts({bool silent = false}) async {
+    if (!silent) {
+      setState(() => _loadingDrafts = true);
     }
+    final drafts = await _fetchList('getdraftposts');
     if (mounted) {
       setState(() {
         _drafts = drafts;
@@ -350,134 +390,30 @@ class _ProfilePageState extends State<ProfilePage>
         ? widget.userId
         : (prefs.getString("user_id") ?? "");
     if (token.isEmpty && targetId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please sign in to like stories")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please sign in to like stories")),
+        );
+      }
       return;
     }
 
-    final isLiked = _likedPosts.contains(postId);
-    setState(() {
-      if (isLiked) {
-        _likedPosts.remove(postId);
-      } else {
-        _likedPosts.add(postId);
-      }
+    final post = _myPosts.firstWhere(
+      (p) => (p['post_id'] ?? p['_id'])?.toString() == postId,
+      orElse: () => _savedPosts.firstWhere(
+        (p) => (p['post_id'] ?? p['_id'])?.toString() == postId,
+        orElse: () => <String, dynamic>{},
+      ),
+    );
+    final count = LikedPostsManager.instance.getSupportCount(postId) ??
+        int.tryParse(post['support_count']?.toString() ?? '0') ?? 0;
 
-      for (var p in _myPosts) {
-        if (p['post_id']?.toString() == postId) {
-          int count = int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-          p['support_count'] = isLiked
-              ? (count - 1).clamp(0, 999999)
-              : (count + 1);
-          break;
-        }
-      }
-      for (var p in _savedPosts) {
-        if (p['post_id']?.toString() == postId) {
-          int count = int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-          p['support_count'] = isLiked
-              ? (count - 1).clamp(0, 999999)
-              : (count + 1);
-          break;
-        }
-      }
-    });
-
-    await _saveInteractionsLocal();
-
-    try {
-      final response = await http.post(
-        Uri.parse("${ApiConfig.apiBaseUrl}/posts/toggleSupport/$postId"),
-        headers: {
-          if (token.isNotEmpty) "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode({"userId": targetId}),
-      );
-      if (response.statusCode == 200) {
-        try {
-          final resData = jsonDecode(response.body);
-          final serverCount = resData['support_count'] ?? resData['supports_count'];
-          if (serverCount != null) {
-            setState(() {
-              for (var p in _myPosts) {
-                if (p['post_id']?.toString() == postId) {
-                  p['support_count'] = serverCount;
-                  break;
-                }
-              }
-              for (var p in _savedPosts) {
-                if (p['post_id']?.toString() == postId) {
-                  p['support_count'] = serverCount;
-                  break;
-                }
-              }
-            });
-          }
-        } catch (_) {}
-      } else {
-        // Revert
-        setState(() {
-          if (isLiked) {
-            _likedPosts.add(postId);
-          } else {
-            _likedPosts.remove(postId);
-          }
-          for (var p in _myPosts) {
-            if (p['post_id']?.toString() == postId) {
-              int count =
-                  int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-              p['support_count'] = isLiked
-                  ? (count + 1)
-                  : (count - 1).clamp(0, 999999);
-              break;
-            }
-          }
-          for (var p in _savedPosts) {
-            if (p['post_id']?.toString() == postId) {
-              int count =
-                  int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-              p['support_count'] = isLiked
-                  ? (count + 1)
-                  : (count - 1).clamp(0, 999999);
-              break;
-            }
-          }
-        });
-        await _saveInteractionsLocal();
-      }
-    } catch (_) {
-      // Revert
-      setState(() {
-        if (isLiked) {
-          _likedPosts.add(postId);
-        } else {
-          _likedPosts.remove(postId);
-        }
-        for (var p in _myPosts) {
-          if (p['post_id']?.toString() == postId) {
-            int count =
-                int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-            p['support_count'] = isLiked
-                ? (count + 1)
-                : (count - 1).clamp(0, 999999);
-            break;
-          }
-        }
-        for (var p in _savedPosts) {
-          if (p['post_id']?.toString() == postId) {
-            int count =
-                int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-            p['support_count'] = isLiked
-                ? (count + 1)
-                : (count - 1).clamp(0, 999999);
-            break;
-          }
-        }
-      });
-      await _saveInteractionsLocal();
-    }
+    await LikedPostsManager.instance.toggleLike(
+      postId: postId,
+      userId: targetId,
+      token: token,
+      currentCount: count,
+    );
   }
 
   Future<void> _toggleSave(String postId) async {
@@ -516,36 +452,54 @@ class _ProfilePageState extends State<ProfilePage>
         RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(_username);
     final displayName = !isUserIdLike ? _username : 'Ritpen User';
 
-    return Scaffold(
-      body: RefreshIndicator(
-        color: AppColors.brand,
-        onRefresh: _loadAll,
-        child: NestedScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          headerSliverBuilder: (context, innerBoxIsScrolled) => [
-            SliverToBoxAdapter(child: _buildProfileHeader(displayName)),
-            SliverToBoxAdapter(child: _buildSegmentedTabs()),
-          ],
-          body: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildPostsTab(
-                _myPosts,
-                _loadingPosts,
-                icon: Icons.article_outlined,
-                title: 'No posts yet',
-                subtitle: 'Stories you publish will appear here',
-                onDelete: _deletePost,
-              ),
-              _buildDraftsTab(),
-              _buildPostsTab(
-                _savedPosts,
-                _loadingSaved,
-                icon: Icons.bookmark_border_rounded,
-                title: 'Nothing saved',
-                subtitle: 'Bookmark stories to read them later',
-              ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (widget.onBackToHome != null) {
+          widget.onBackToHome!();
+        } else if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MainShell(initialIndex: 0),
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        body: RefreshIndicator(
+          color: AppColors.brand,
+          onRefresh: _loadAll,
+          child: NestedScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverToBoxAdapter(child: _buildProfileHeader(displayName)),
+              SliverToBoxAdapter(child: _buildSegmentedTabs()),
             ],
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildPostsTab(
+                  _myPosts,
+                  _loadingPosts,
+                  icon: Icons.article_outlined,
+                  title: 'No posts yet',
+                  subtitle: 'Stories you publish will appear here',
+                  onDelete: _deletePost,
+                ),
+                _buildDraftsTab(),
+                _buildPostsTab(
+                  _savedPosts,
+                  _loadingSaved,
+                  icon: Icons.bookmark_border_rounded,
+                  title: 'Nothing saved',
+                  subtitle: 'Bookmark stories to read them later',
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -560,12 +514,35 @@ class _ProfilePageState extends State<ProfilePage>
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 44, 20, 20),
+        padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 16, 20, 20),
         child: Column(
           children: [
             Row(
               children: [
-                if (!widget.isPublicView)
+                if (widget.isPublicView)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 20,
+                      color: AppColors.textPrimary,
+                    ),
+                    tooltip: 'Back',
+                    onPressed: () {
+                      if (widget.onBackToHome != null) {
+                        widget.onBackToHome!();
+                      } else if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      } else {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MainShell(initialIndex: 0),
+                          ),
+                        );
+                      }
+                    },
+                  )
+                else
                   IconButton(
                     icon: const Icon(
                       Icons.logout_rounded,
@@ -576,7 +553,6 @@ class _ProfilePageState extends State<ProfilePage>
                     onPressed: _showLogoutConfirmation,
                   ),
                 const Spacer(),
-                if (!widget.isPublicView)
                   Material(
                     color: AppColors.brand.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
@@ -871,14 +847,15 @@ class _ProfilePageState extends State<ProfilePage>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 24),
+      padding: EdgeInsets.fromLTRB(0, 4, 0, 24 + (widget.isPublicView ? MediaQuery.paddingOf(context).bottom : 0)),
       itemCount: posts.length,
       itemBuilder: (context, index) {
         final post = posts[index];
         final postId = (post['post_id'] ?? post['_id'])?.toString() ?? '';
         return PostContainer(
+          key: ValueKey('profile_post_${postId}_${post['cover_image'] ?? post['cover_img'] ?? ''}'),
           post: post,
-          isLiked: _likedPosts.contains(postId),
+          isLiked: LikedPostsManager.instance.isLiked(postId),
           isSaved: SavedPostsManager.instance.isSaved(postId),
           onLike: () => _toggleLike(postId),
           onSave: () => _toggleSave(postId),
@@ -914,28 +891,45 @@ class _ProfilePageState extends State<ProfilePage>
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token") ?? "";
-    if (token.isEmpty) return;
+
+    // Optimistically remove from _myPosts immediately
+    setState(() {
+      _myPosts.removeWhere((p) {
+        final pid = (p['post_id'] ?? p['_id'])?.toString() ?? '';
+        return pid == postId;
+      });
+    });
 
     try {
       final response = await http.delete(
         Uri.parse("${ApiConfig.apiBaseUrl}/posts/$postId"),
-        headers: {"Authorization": "Bearer $token"},
+        headers: {if (token.isNotEmpty) "Authorization": "Bearer $token"},
       );
 
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Story deleted successfully")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Story deleted successfully")),
+          );
+        }
+        LikedPostsManager.instance.notifyPostDeleted(postId);
+        SavedPostsManager.instance.notifyPostDeleted(postId);
         _fetchMyPosts();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Failed to delete story")));
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Failed to delete story")));
+        }
+        _fetchMyPosts();
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+      _fetchMyPosts();
     }
   }
 
@@ -965,6 +959,16 @@ class _ProfilePageState extends State<ProfilePage>
     final token = prefs.getString("token") ?? "";
     if (token.isEmpty) return;
 
+    final originalDrafts = List<Map<String, dynamic>>.from(_drafts);
+
+    // Optimistically remove from UI immediately
+    setState(() {
+      _drafts.removeWhere((d) {
+        final id = (d['draft_id'] ?? d['_id'] ?? d['id'])?.toString();
+        return id == draftId;
+      });
+    });
+
     try {
       final response = await http.delete(
         Uri.parse("${ApiConfig.apiBaseUrl}/draft/$draftId"),
@@ -972,19 +976,31 @@ class _ProfilePageState extends State<ProfilePage>
       );
 
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Draft deleted successfully")),
-        );
-        _fetchDrafts();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Draft deleted successfully"),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        DraftsManager.instance.notifyDraftsChanged();
+        _fetchDrafts(silent: true);
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Failed to delete draft")));
+        if (mounted) {
+          setState(() => _drafts = originalDrafts);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Failed to delete draft")));
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        setState(() => _drafts = originalDrafts);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
     }
   }
 
@@ -1003,7 +1019,7 @@ class _ProfilePageState extends State<ProfilePage>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 24),
+      padding: EdgeInsets.fromLTRB(0, 4, 0, 24 + (widget.isPublicView ? MediaQuery.paddingOf(context).bottom : 0)),
       itemCount: _drafts.length,
       itemBuilder: (context, index) {
         final draft = _drafts[index];

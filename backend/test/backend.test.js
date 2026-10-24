@@ -577,14 +577,14 @@ async function runTests() {
 
     // Duplicate request check (must not duplicate)
     const dupJoinRes = await request('POST', `/api/communities/${sampleCommId}/request-join`, {
-      userId: 'USR00000001'
+      userId: freshCommUserId
     });
     assert.strictEqual(dupJoinRes.status, 200);
     assert.strictEqual(dupJoinRes.body.data.status, 'pending');
     console.log('✔ Duplicate request-to-join handled safely without duplicates');
 
     // Check membership status endpoint
-    const statusRes = await request('GET', `/api/communities/${sampleCommId}/membership-status?userId=USR00000001`);
+    const statusRes = await request('GET', `/api/communities/${sampleCommId}/membership-status?userId=${freshCommUserId}`);
     assert.strictEqual(statusRes.status, 200);
     assert.strictEqual(statusRes.body.data.status, 'pending');
     console.log('✔ Community membership status endpoint passed');

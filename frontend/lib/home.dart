@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -10,9 +11,14 @@ import 'package:dmk_project/app_bottom_nav.dart';
 import 'package:dmk_project/app_theme.dart';
 import 'package:dmk_project/profile.dart';
 import 'package:dmk_project/saved_posts_manager.dart';
+import 'package:dmk_project/liked_posts_manager.dart';
 import 'package:dmk_project/hashtag.dart' show HashtagPostsPage;
 import 'package:dmk_project/legal_pages.dart';
 import 'package:dmk_project/community_page.dart';
+import 'package:dmk_project/notifications_page.dart';
+import 'package:dmk_project/services/notification_badge_manager.dart';
+import 'package:dmk_project/services/notification_service.dart';
+import 'package:dmk_project/services/app_update_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dmk_project/reading_page.dart';
 
@@ -32,6 +38,9 @@ class _MainShellState extends State<MainShell> {
   late int _currentIndex;
   String? _userId;
   bool _isLoading = true;
+  DateTime? _lastBackPressTime;
+  final GlobalKey<HomePageState> _homeKey = GlobalKey<HomePageState>();
+  final GlobalKey<ProfilePageState> _profileKey = GlobalKey<ProfilePageState>();
 
   @override
   void initState() {
@@ -42,13 +51,19 @@ class _MainShellState extends State<MainShell> {
 
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
-      if (mounted) {
-        setState(() {
-          _userId = prefs.getString("user_id");
-          _isLoading = false;
-        });
-      }
+    if (mounted) {
+      setState(() {
+        _userId = prefs.getString("user_id");
+        _isLoading = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          AppUpdateService().checkUpdate(context);
+        }
+      });
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -62,17 +77,89 @@ class _MainShellState extends State<MainShell> {
       );
     }
 
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          const HomePage(),
-          ProfilePage(userId: _userId ?? '', isPublicView: false),
-        ],
-      ),
-      bottomNavigationBar: AppBottomNavBar(
-        activeIndex: _currentIndex,
-        onTabSelected: (index) => setState(() => _currentIndex = index),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        // 1. If on Profile page, navigate back to Home page without exiting app
+        if (_currentIndex != 0) {
+          setState(() {
+            _currentIndex = 0;
+          });
+          return;
+        }
+
+        // 2. We are on Home page (_currentIndex == 0)
+        final homeState = _homeKey.currentState;
+        final now = DateTime.now();
+
+        // If scrolled down on Home page: scroll to top, auto-refresh feed
+        if (homeState != null && homeState.isScrolledDown) {
+          await homeState.scrollToTopAndRefresh();
+          _lastBackPressTime = DateTime.now();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Press back again to exit'),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
+        // If already at top or on the first back click:
+        final bool canExit = _lastBackPressTime != null &&
+            now.difference(_lastBackPressTime!) <= const Duration(seconds: 2);
+
+        if (!canExit) {
+          _lastBackPressTime = now;
+          if (homeState != null) {
+            await homeState.scrollToTopAndRefresh();
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Press back again to exit'),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
+        // Double back click within 2 seconds: exit app
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: [
+            HomePage(key: _homeKey),
+            ProfilePage(
+              key: _profileKey,
+              userId: _userId ?? '',
+              isPublicView: false,
+              onBackToHome: () {
+                if (mounted) {
+                  setState(() => _currentIndex = 0);
+                }
+              },
+            ),
+          ],
+        ),
+        bottomNavigationBar: AppBottomNavBar(
+          activeIndex: _currentIndex,
+          onTabSelected: (index) {
+            setState(() => _currentIndex = index);
+            if (index == 1) {
+              _profileKey.currentState?.reloadProfileData();
+            }
+          },
+        ),
       ),
     );
   }
@@ -85,10 +172,10 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> _posts = [];
   Set<String> _likedPosts = {};
   Set<String> _savedPosts = {};
@@ -102,10 +189,30 @@ class _HomePageState extends State<HomePage> {
   bool _hasNextPage = true;
   bool _isLoadMoreRunning = false;
 
+  Future<void> _fetchUnreadNotificationCount() async {
+    await NotificationBadgeManager.instance.refreshUnreadCount();
+  }
+
+  bool get isScrolledDown =>
+      _scrollController.hasClients && _scrollController.offset > 50;
+
+  Future<void> scrollToTopAndRefresh() async {
+    if (_scrollController.hasClients && _scrollController.offset > 0) {
+      await _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+    await _fetchFeed();
+    _fetchUnreadNotificationCount();
+  }
+
   @override
   void initState() {
     super.initState();
     SavedPostsManager.instance.addListener(_onSavedChanged);
+    LikedPostsManager.instance.addListener(_onInteractionsChanged);
     _scrollController.addListener(_loadMore);
     _loadUserAndFeed();
   }
@@ -114,9 +221,21 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() {});
   }
 
+  void _onInteractionsChanged() {
+    if (!mounted) return;
+    if (LikedPostsManager.instance.deletedPostIds.isNotEmpty) {
+      _posts.removeWhere((p) {
+        final pid = (p['post_id'] ?? p['_id'])?.toString() ?? '';
+        return LikedPostsManager.instance.deletedPostIds.contains(pid);
+      });
+    }
+    setState(() {});
+  }
+
   @override
   void dispose() {
     SavedPostsManager.instance.removeListener(_onSavedChanged);
+    LikedPostsManager.instance.removeListener(_onInteractionsChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -130,8 +249,17 @@ class _HomePageState extends State<HomePage> {
             "")
         .trim();
     SavedPostsManager.instance.init(_userId);
+    LikedPostsManager.instance.init(_userId);
+    NotificationBadgeManager.instance.init(
+      userId: _userId,
+      authToken: prefs.getString("token"),
+    );
+    if (_userId != null && _userId!.isNotEmpty) {
+      NotificationService().syncFcmToken(_userId);
+    }
     await _fetchFeed();
     await _fetchUserInteractions();
+    _fetchUnreadNotificationCount();
   }
 
   void _sanitizePosts(List<Map<String, dynamic>> postList) {
@@ -159,9 +287,23 @@ class _HomePageState extends State<HomePage> {
     });
     try {
       final userParam = (_userId != null && _userId!.isNotEmpty) ? "&userId=$_userId" : "";
-      final response = await http.get(
-        Uri.parse("${ApiConfig.apiBaseUrl}/posts?page=$_page&limit=$_limit$userParam"),
-      );
+      http.Response? response;
+      try {
+        response = await http.get(
+          Uri.parse("${ApiConfig.apiBaseUrl}/posts?page=$_page&limit=$_limit$userParam"),
+        ).timeout(const Duration(seconds: 12));
+      } catch (err) {
+        // If local backend fails (timeout, socket exception, host unreachable), auto-fallback to live backend
+        if (ApiConfig.activeBaseUrl != ApiConfig.liveBaseUrl) {
+          debugPrint('Local backend failed ($err). Auto-falling back to live backend: ${ApiConfig.liveBaseUrl}');
+          ApiConfig.activeBaseUrl = ApiConfig.liveBaseUrl;
+          response = await http.get(
+            Uri.parse("${ApiConfig.apiBaseUrl}/posts?page=$_page&limit=$_limit$userParam"),
+          ).timeout(const Duration(seconds: 25));
+        } else {
+          rethrow;
+        }
+      }
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map && decoded['data'] is List) {
@@ -172,13 +314,16 @@ class _HomePageState extends State<HomePage> {
           );
           _sanitizePosts(_posts);
           for (var p in _posts) {
-            final pid = p['post_id']?.toString() ?? '';
+            final pid = (p['post_id'] ?? p['_id'])?.toString() ?? '';
             if (pid.isNotEmpty) {
               if (p['isSaved'] == true) {
                 _savedPosts.add(pid);
                 SavedPostsManager.instance.savedPostIds.add(pid);
               }
-              if (p['isSupported'] == true || p['isLiked'] == true) _likedPosts.add(pid);
+              final isSup = (p['isSupported'] == true || p['isLiked'] == true);
+              final sc = int.tryParse(p['support_count']?.toString() ?? '');
+              LikedPostsManager.instance.syncPost(pid, isLiked: isSup, supportCount: sc);
+              if (isSup) _likedPosts.add(pid);
               if (p['comment_count'] != null) {
                 CommentsSheetContent.commentCounts[pid] = int.tryParse(p['comment_count'].toString()) ?? 0;
               }
@@ -211,7 +356,7 @@ class _HomePageState extends State<HomePage> {
         final userParam = (_userId != null && _userId!.isNotEmpty) ? "&userId=$_userId" : "";
         final response = await http.get(
           Uri.parse("${ApiConfig.apiBaseUrl}/posts?page=$_page&limit=$_limit$userParam"),
-        );
+        ).timeout(const Duration(seconds: 25));
         if (response.statusCode == 200) {
           final decoded = jsonDecode(response.body);
           if (decoded is Map && decoded['data'] is List) {
@@ -222,13 +367,16 @@ class _HomePageState extends State<HomePage> {
               );
               _sanitizePosts(mappedNew);
               for (var p in mappedNew) {
-                final pid = p['post_id']?.toString() ?? '';
+                final pid = (p['post_id'] ?? p['_id'])?.toString() ?? '';
                 if (pid.isNotEmpty) {
                   if (p['isSaved'] == true) {
                     _savedPosts.add(pid);
                     SavedPostsManager.instance.savedPostIds.add(pid);
                   }
-                  if (p['isSupported'] == true || p['isLiked'] == true) _likedPosts.add(pid);
+                  final isSup = (p['isSupported'] == true || p['isLiked'] == true);
+                  final sc = int.tryParse(p['support_count']?.toString() ?? '');
+                  LikedPostsManager.instance.syncPost(pid, isLiked: isSup, supportCount: sc);
+                  if (isSup) _likedPosts.add(pid);
                   if (p['comment_count'] != null) {
                     CommentsSheetContent.commentCounts[pid] = int.tryParse(p['comment_count'].toString()) ?? 0;
                   }
@@ -283,101 +431,19 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final bool isAlreadyLiked = _likedPosts.contains(postId);
+    final post = _posts.firstWhere(
+      (p) => (p['post_id'] ?? p['_id'])?.toString() == postId,
+      orElse: () => <String, dynamic>{},
+    );
+    final count = LikedPostsManager.instance.getSupportCount(postId) ??
+        int.tryParse(post['support_count']?.toString() ?? '0') ?? 0;
 
-    setState(() {
-      if (isAlreadyLiked) {
-        _likedPosts.remove(postId);
-      } else {
-        _likedPosts.add(postId);
-      }
-
-      for (var p in _posts) {
-        if (p['post_id']?.toString() == postId) {
-          int count = int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-          p['support_count'] = isAlreadyLiked ? (count - 1).clamp(0, 999999) : (count + 1);
-          p['isLiked'] = !isAlreadyLiked;
-          p['isSupported'] = !isAlreadyLiked;
-          break;
-        }
-      }
-    });
-
-    await _saveInteractionsLocal();
-
-    try {
-      final response = await http.post(
-        Uri.parse("${ApiConfig.apiBaseUrl}/posts/toggleSupport/$postId"),
-        headers: {
-          if (token.isNotEmpty) "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode({"userId": effectiveUserId}),
-      );
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map && decoded['data'] is Map) {
-          final serverCount = int.tryParse(decoded['data']['support_count']?.toString() ?? '');
-          final serverSupported = decoded['data']['isSupported'] == true;
-          setState(() {
-            if (serverSupported) {
-              _likedPosts.add(postId);
-            } else {
-              _likedPosts.remove(postId);
-            }
-            if (serverCount != null) {
-              for (var p in _posts) {
-                if (p['post_id']?.toString() == postId) {
-                  p['support_count'] = serverCount;
-                  p['isLiked'] = serverSupported;
-                  p['isSupported'] = serverSupported;
-                  break;
-                }
-              }
-            }
-          });
-          await _saveInteractionsLocal();
-        }
-      } else {
-        // Revert
-        setState(() {
-          if (isAlreadyLiked) {
-            _likedPosts.add(postId);
-          } else {
-            _likedPosts.remove(postId);
-          }
-          for (var p in _posts) {
-            if (p['post_id']?.toString() == postId) {
-              int count = int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-              p['support_count'] = isAlreadyLiked ? (count + 1) : (count - 1).clamp(0, 999999);
-              p['isLiked'] = isAlreadyLiked;
-              p['isSupported'] = isAlreadyLiked;
-              break;
-            }
-          }
-        });
-        await _saveInteractionsLocal();
-      }
-    } catch (_) {
-      // Revert
-      setState(() {
-        if (isAlreadyLiked) {
-          _likedPosts.add(postId);
-        } else {
-          _likedPosts.remove(postId);
-        }
-        for (var p in _posts) {
-          if (p['post_id']?.toString() == postId) {
-            int count = int.tryParse(p['support_count']?.toString() ?? '0') ?? 0;
-            p['support_count'] = isAlreadyLiked ? (count + 1) : (count - 1).clamp(0, 999999);
-            p['isLiked'] = isAlreadyLiked;
-            p['isSupported'] = isAlreadyLiked;
-            break;
-          }
-        }
-      });
-      await _saveInteractionsLocal();
-    }
+    await LikedPostsManager.instance.toggleLike(
+      postId: postId,
+      userId: effectiveUserId,
+      token: token,
+      currentCount: count,
+    );
   }
 
   Future<void> _toggleSave(String postId) async {
@@ -414,11 +480,14 @@ class _HomePageState extends State<HomePage> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(
-              'assets/images/ryitu_logo_round.png',
-              width: 32,
-              height: 32,
-              fit: BoxFit.contain,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/images/ryitu_logo_round.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.contain,
+              ),
             ),
             const SizedBox(width: 8),
             Text(
@@ -441,6 +510,51 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const CommunitiesListPage()),
+              );
+            },
+          ),
+          ValueListenableBuilder<int>(
+            valueListenable: NotificationBadgeManager.instance.unreadCountNotifier,
+            builder: (context, unreadCount, _) {
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_none_rounded, color: Color(0xFF1A1A1A), size: 26),
+                    tooltip: 'Notifications',
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const NotificationsPage()),
+                      );
+                      _fetchUnreadNotificationCount();
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE53935),
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Center(
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
           ),
@@ -516,10 +630,33 @@ class _HomePageState extends State<HomePage> {
               child: CircularProgressIndicator(color: AppColors.brand),
             )
           : _posts.isEmpty
-              ? appEmptyState(
-                  icon: Icons.auto_stories_outlined,
-                  title: 'கதைகள் இல்லை',
-                  subtitle: 'புதிய கதைகள் வரும்போது இங்கே தெரியும்',
+              ? RefreshIndicator(
+                  color: AppColors.brand,
+                  onRefresh: _fetchFeed,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+                      appEmptyState(
+                        icon: Icons.auto_stories_outlined,
+                        title: 'கதைகள் இல்லை',
+                        subtitle: 'புதிய கதைகள் வரும்போது இங்கே தெரியும்',
+                      ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: OutlinedButton.icon(
+                          onPressed: _fetchFeed,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('மீண்டும் புதுப்பி'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.brand,
+                            side: const BorderSide(color: AppColors.brand),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 )
               : RefreshIndicator(
                   color: AppColors.brand,
@@ -544,8 +681,9 @@ class _HomePageState extends State<HomePage> {
                       final postId = (post['post_id'] ?? post['_id'])?.toString() ?? '';
 
                       return PostContainer(
+                        key: ValueKey('home_post_${postId}_${post['cover_image'] ?? post['cover_img'] ?? ''}'),
                         post: post,
-                        isLiked: _likedPosts.contains(postId),
+                        isLiked: LikedPostsManager.instance.isLiked(postId),
                         isSaved: SavedPostsManager.instance.isSaved(postId),
                         onLike: () => _toggleLike(postId),
                         onSave: () => _toggleSave(postId),
@@ -600,6 +738,15 @@ class PostContainer extends StatelessWidget {
     path = path.trim();
 
     if (path.startsWith("http")) {
+      if (path.contains("localhost") || path.contains("127.0.0.1")) {
+        try {
+          final uri = Uri.parse(path);
+          final baseUri = Uri.parse(ApiConfig.baseUrl);
+          return uri.replace(scheme: baseUri.scheme, host: baseUri.host, port: baseUri.port).toString();
+        } catch (_) {
+          return path;
+        }
+      }
       return path;
     }
 
@@ -668,7 +815,7 @@ class PostContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const brandColor = Color(0xFF0729E8);
-    final postId = post['post_id']?.toString() ?? post['draft_id']?.toString() ?? "";
+    final postId = (post['post_id'] ?? post['_id'] ?? post['draft_id'])?.toString() ?? "";
     String username = post['username']?.toString() ?? "";
     if (username.isEmpty || username.toLowerCase() == "anonymous" || RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(username)) {
       final fallbackName = post['name']?.toString() ?? post['author']?.toString() ?? post['user_name']?.toString() ?? '';
@@ -683,7 +830,9 @@ class PostContainer extends StatelessWidget {
     final profileImage = _fullUrl(post['profile_image']?.toString());
     final title = post['title']?.toString() ?? "Untitled Story";
     final caption = post['caption']?.toString() ?? "";
-    final supportCount = int.tryParse(post['support_count']?.toString() ?? '0') ?? 0;
+    final supportCount = LikedPostsManager.instance.getSupportCount(postId) ??
+        int.tryParse(post['support_count']?.toString() ?? '0') ??
+        0;
     final hashtagsStr = post['hashtags']?.toString() ?? "";
     final viewsCount = int.tryParse(post['views']?.toString() ?? '0') ?? 0;
 
@@ -1019,8 +1168,12 @@ class PostContainer extends StatelessWidget {
                             );
                           }
                           return CachedNetworkImage(
+                            key: ValueKey('cover_${postId}_$coverUrl'),
                             imageUrl: coverUrl,
                             fit: BoxFit.cover,
+                            memCacheWidth: 800,
+                            fadeInDuration: const Duration(milliseconds: 150),
+                            fadeOutDuration: const Duration(milliseconds: 150),
                             placeholder: (context, url) => Container(
                               color: brandColor.withOpacity(0.06),
                               child: Center(
@@ -1160,32 +1313,36 @@ class PostContainer extends StatelessWidget {
               Row(
                 children: [
                   // Like button
-                  GestureDetector(
-                    onTap: onLike,
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isLiked ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
-                            color: isLiked ? Colors.red : AppColors.textSecondary,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            "$supportCount",
-                            style: TextStyle(
-                              color: isLiked ? Colors.red : AppColors.textSecondary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                  Builder(builder: (context) {
+                    final effectiveLiked = LikedPostsManager.instance.isLiked(postId);
+                    final effectiveCount = LikedPostsManager.instance.getSupportCount(postId) ?? supportCount;
+                    return GestureDetector(
+                      onTap: onLike,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              effectiveLiked ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
+                              color: effectiveLiked ? Colors.red : AppColors.textSecondary,
+                              size: 22,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 5),
+                            Text(
+                              "$effectiveCount",
+                              style: TextStyle(
+                                color: effectiveLiked ? Colors.red : AppColors.textSecondary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  }),
                   const SizedBox(width: 16),
                   // Comment button
                   GestureDetector(
@@ -1457,16 +1614,52 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
     0xFF0729E8, // Brand Blue
   ];
 
+  late List<dynamic> _pages;
+
   @override
   void initState() {
     super.initState();
+    _pages = List.from(widget.pages);
     _loadLastReadPage();
+    _fetchFullContentIfNeeded();
+  }
+
+  Future<void> _fetchFullContentIfNeeded() async {
+    if (widget.postId.isEmpty) return;
+    try {
+      final res = await http.get(Uri.parse('${ApiConfig.apiBaseUrl}/posts/${widget.postId}')).timeout(const Duration(seconds: 25));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map && decoded['data'] is Map) {
+          final postData = decoded['data'];
+          final rawContent = postData['content'];
+          List<dynamic> fullPages = [];
+          if (rawContent is List) {
+            fullPages = rawContent;
+          } else if (rawContent is Map && rawContent.containsKey('pages')) {
+            fullPages = rawContent['pages'] ?? [];
+          } else if (rawContent is String) {
+            try {
+              final d = jsonDecode(rawContent);
+              if (d is List) fullPages = d;
+              if (d is Map && d.containsKey('pages')) fullPages = d['pages'] ?? [];
+            } catch (_) {}
+          }
+          if (fullPages.length > _pages.length && mounted) {
+            setState(() {
+              _pages = fullPages;
+            });
+            _loadLastReadPage();
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadLastReadPage() async {
     final prefs = await SharedPreferences.getInstance();
     final savedPage = prefs.getInt("last_read_page_${widget.postId}") ?? 0;
-    if (savedPage > 0 && savedPage < widget.pages.length) {
+    if (savedPage > 0 && savedPage < _pages.length) {
       setState(() {
         _currentPage = savedPage;
       });
@@ -2044,74 +2237,77 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
         ),
       ),
       builder: (BuildContext sheetContext) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 5,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: sheetTextColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 5,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: sheetTextColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
-              ),
-              // Header
-              Text(
-                "Table of Contents",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'serif',
-                  color: sheetTextColor,
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Grid of Pages
-              Flexible(
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const BouncingScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 1.0,
+                // Header
+                Text(
+                  "Table of Contents",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'serif',
+                    color: sheetTextColor,
                   ),
-                  itemCount: widget.pages.length,
-                  itemBuilder: (context, index) {
-                    final isSelected = index == _currentPage;
-                    return GestureDetector(
-                      onTap: () {
-                        _pageController.jumpToPage(index);
-                        Navigator.pop(context);
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected ? brandColor : gridItemBg,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          "${index + 1}",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: isSelected ? Colors.white : gridItemTextColor,
+                ),
+                const SizedBox(height: 20),
+                // Grid of Pages
+                Flexible(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    physics: const BouncingScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 1.0,
+                    ),
+                    itemCount: _pages.length,
+                    itemBuilder: (context, index) {
+                      final isSelected = index == _currentPage;
+                      return GestureDetector(
+                        onTap: () {
+                          _pageController.jumpToPage(index);
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected ? brandColor : gridItemBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "${index + 1}",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected ? Colors.white : gridItemTextColor,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -2120,7 +2316,7 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final totalPages = widget.pages.length;
+    final totalPages = _pages.length;
 
     Color scaffoldBg;
     Color cardBg;
@@ -2241,10 +2437,10 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
                     _saveLastReadPage(index);
                   },
                   itemBuilder: (context, index) {
-                    final page = widget.pages[index];
+                    final page = _pages[index];
 
                     return Container(
-                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      margin: EdgeInsets.fromLTRB(16, 8, 16, 16 + MediaQuery.paddingOf(context).bottom),
                       decoration: BoxDecoration(
                         color: cardBg,
                         borderRadius: BorderRadius.circular(24),
@@ -2389,6 +2585,7 @@ class _CommentsSheetContentState extends State<CommentsSheetContent> {
   List<Map<String, dynamic>> _comments = [];
   bool _isLoading = true;
   String? _userId;
+  String? _authToken;
   String _currentUsername = "";
   String? _currentUserAvatar;
 
@@ -2435,6 +2632,7 @@ class _CommentsSheetContentState extends State<CommentsSheetContent> {
     try {
       final prefs = await SharedPreferences.getInstance();
       _userId = prefs.getString("user_id");
+      _authToken = prefs.getString("token");
       _currentUsername = (prefs.getString("username") ??
               prefs.getString("user_name") ??
               prefs.getString("name") ??
@@ -2504,6 +2702,8 @@ class _CommentsSheetContentState extends State<CommentsSheetContent> {
 
     final tempComment = <String, dynamic>{
       "_id": "temp_${DateTime.now().millisecondsSinceEpoch}",
+      "user_id": _userId ?? "",
+      "userId": _userId ?? "",
       "username": myName,
       "profile_image": _currentUserAvatar ?? "",
       "createdAt": DateTime.now().toIso8601String(),
@@ -2600,6 +2800,95 @@ class _CommentsSheetContentState extends State<CommentsSheetContent> {
         }),
       );
     } catch (_) {}
+  }
+
+  void _confirmDeleteComment(Map<String, dynamic> comment, {Map<String, dynamic>? parentComment}) {
+    final commentUserId = (comment['user_id'] ?? comment['userId'])?.toString();
+    final commentUsername = (comment['username'] ?? '').toString().trim();
+
+    final isTemp = (comment['_id'] ?? comment['id'])?.toString().startsWith('temp_') == true;
+    final isMyComment = isTemp ||
+        (_userId != null && _userId!.isNotEmpty && commentUserId == _userId) ||
+        (_currentUsername.isNotEmpty &&
+            commentUsername.isNotEmpty &&
+            commentUsername.toLowerCase() == _currentUsername.toLowerCase());
+
+    if (!isMyComment) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 24),
+                title: const Text(
+                  'Delete Comment',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _deleteComment(comment, parentComment: parentComment);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteComment(Map<String, dynamic> comment, {Map<String, dynamic>? parentComment}) async {
+    final commentId = (comment['_id'] ?? comment['id'] ?? comment['comment_id'])?.toString();
+    if (commentId == null) return;
+
+    // Optimistically remove from state
+    setState(() {
+      if (parentComment != null) {
+        final replies = parentComment['replies'] as List?;
+        replies?.removeWhere((r) => (r['_id'] ?? r['id'] ?? r['comment_id'])?.toString() == commentId);
+      } else {
+        _comments.removeWhere((c) => (c['_id'] ?? c['id'] ?? c['comment_id'])?.toString() == commentId);
+      }
+    });
+
+    final currentCount = CommentsSheetContent.getCommentCount(widget.postId);
+    if (currentCount > 0) {
+      CommentsSheetContent.setCommentCount(widget.postId, currentCount - 1);
+    }
+    widget.onCommentChanged?.call();
+
+    try {
+      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/posts/comments/$commentId');
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        if (_authToken != null && _authToken!.isNotEmpty) 'Authorization': 'Bearer $_authToken',
+      };
+      await http.delete(uri, headers: headers);
+    } catch (e) {
+      debugPrint('[Delete comment error]: $e');
+    }
   }
 
   @override
@@ -2722,226 +3011,234 @@ class _CommentsSheetContentState extends State<CommentsSheetContent> {
                             final String itemAvatar = item['profile_image']?.toString() ?? '';
                             final String itemName = item['username']?.toString() ?? 'Anonymous';
 
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 18,
-                                      backgroundColor: widget.brandColor.withOpacity(0.1),
-                                      backgroundImage: itemAvatar.isNotEmpty
-                                          ? CachedNetworkImageProvider(_fullUrl(itemAvatar))
-                                          : null,
-                                      child: itemAvatar.isEmpty
-                                          ? Text(
-                                              _getInitials(itemName),
-                                              style: TextStyle(
-                                                color: widget.brandColor,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                              ),
-                                            )
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            crossAxisAlignment: CrossAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                itemName,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 13,
-                                                  color: AppColors.textPrimary,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                _formatCommentTime(item['createdAt'], item['timeAgo']),
-                                                style: const TextStyle(
-                                                  color: AppColors.textSecondary,
-                                                  fontSize: 11,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            (item['text'] ?? item['message'] ?? item['comment'] ?? '').toString(),
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: AppColors.textPrimary,
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          // Reply button
-                                          GestureDetector(
-                                            onTap: () {
-                                              setState(() {
-                                                _replyingToComment = item;
-                                              });
-                                            },
-                                            child: Text(
-                                              "Reply",
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: widget.brandColor,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    GestureDetector(
-                                      onTap: () => _toggleCommentLike(item),
-                                      behavior: HitTestBehavior.opaque,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              commentLiked ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
-                                              color: commentLiked ? widget.brandColor : AppColors.textSecondary,
-                                              size: 16,
-                                            ),
-                                            if (likesCount > 0) ...[
-                                              const SizedBox(width: 3),
-                                              Text(
-                                                "$likesCount",
+                            return GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onLongPress: () => _confirmDeleteComment(item),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 18,
+                                        backgroundColor: widget.brandColor.withOpacity(0.1),
+                                        backgroundImage: itemAvatar.isNotEmpty
+                                            ? CachedNetworkImageProvider(_fullUrl(itemAvatar))
+                                            : null,
+                                        child: itemAvatar.isEmpty
+                                            ? Text(
+                                                _getInitials(itemName),
                                                 style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: commentLiked ? widget.brandColor : AppColors.textSecondary,
+                                                  color: widget.brandColor,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  itemName,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13,
+                                                    color: AppColors.textPrimary,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  _formatCommentTime(item['createdAt'], item['timeAgo']),
+                                                  style: const TextStyle(
+                                                    color: AppColors.textSecondary,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              (item['text'] ?? item['message'] ?? item['comment'] ?? '').toString(),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: AppColors.textPrimary,
+                                                height: 1.4,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            // Reply button
+                                            GestureDetector(
+                                              onTap: () {
+                                                setState(() {
+                                                  _replyingToComment = item;
+                                                });
+                                              },
+                                              child: Text(
+                                                "Reply",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: widget.brandColor,
                                                 ),
                                               ),
-                                            ],
+                                            ),
                                           ],
                                         ),
                                       ),
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: () => _toggleCommentLike(item),
+                                        behavior: HitTestBehavior.opaque,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                commentLiked ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
+                                                color: commentLiked ? widget.brandColor : AppColors.textSecondary,
+                                                size: 16,
+                                              ),
+                                              if (likesCount > 0) ...[
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  "$likesCount",
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: commentLiked ? widget.brandColor : AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  // Nested Replies Indented
+                                  if (replies.isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 36),
+                                      child: ListView.separated(
+                                        shrinkWrap: true,
+                                        physics: const NeverScrollableScrollPhysics(),
+                                        itemCount: replies.length,
+                                        separatorBuilder: (context, rIndex) => const SizedBox(height: 12),
+                                        itemBuilder: (context, rIndex) {
+                                          final reply = Map<String, dynamic>.from(replies[rIndex] as Map);
+                                          final bool replyLiked = reply['isLiked'] == true;
+                                          final int replyLikesCount = (reply['likes_count'] as num?)?.toInt() ?? 0;
+                                          final String replyAvatar = reply['profile_image']?.toString() ?? '';
+                                          final String replyName = reply['username']?.toString() ?? 'Anonymous';
+
+                                          return GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onLongPress: () => _confirmDeleteComment(reply, parentComment: item),
+                                            child: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                CircleAvatar(
+                                                  radius: 12,
+                                                  backgroundColor: widget.brandColor.withOpacity(0.1),
+                                                  backgroundImage: replyAvatar.isNotEmpty
+                                                      ? CachedNetworkImageProvider(_fullUrl(replyAvatar))
+                                                      : null,
+                                                  child: replyAvatar.isEmpty
+                                                      ? Text(
+                                                          _getInitials(replyName),
+                                                          style: TextStyle(
+                                                            color: widget.brandColor,
+                                                            fontWeight: FontWeight.bold,
+                                                            fontSize: 9,
+                                                          ),
+                                                        )
+                                                      : null,
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Row(
+                                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                                        children: [
+                                                          Text(
+                                                            replyName,
+                                                            style: const TextStyle(
+                                                              fontWeight: FontWeight.bold,
+                                                              fontSize: 11,
+                                                              color: AppColors.textPrimary,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 6),
+                                                          Text(
+                                                            _formatCommentTime(reply['createdAt'], reply['timeAgo']),
+                                                            style: const TextStyle(
+                                                              color: AppColors.textSecondary,
+                                                              fontSize: 10,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        (reply['text'] ?? reply['message'] ?? reply['comment'] ?? '').toString(),
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color: AppColors.textPrimary,
+                                                          height: 1.3,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                GestureDetector(
+                                                  onTap: () => _toggleCommentLike(reply),
+                                                  behavior: HitTestBehavior.opaque,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Icon(
+                                                          replyLiked ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
+                                                          color: replyLiked ? widget.brandColor : AppColors.textSecondary,
+                                                          size: 13,
+                                                        ),
+                                                        if (replyLikesCount > 0) ...[
+                                                          const SizedBox(width: 3),
+                                                          Text(
+                                                            "$replyLikesCount",
+                                                            style: TextStyle(
+                                                              fontSize: 10,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: replyLiked ? widget.brandColor : AppColors.textSecondary,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ],
-                                ),
-                                // Nested Replies Indented
-                                if (replies.isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 36),
-                                    child: ListView.separated(
-                                      shrinkWrap: true,
-                                      physics: const NeverScrollableScrollPhysics(),
-                                      itemCount: replies.length,
-                                      separatorBuilder: (context, rIndex) => const SizedBox(height: 12),
-                                      itemBuilder: (context, rIndex) {
-                                        final reply = Map<String, dynamic>.from(replies[rIndex] as Map);
-                                        final bool replyLiked = reply['isLiked'] == true;
-                                        final int replyLikesCount = (reply['likes_count'] as num?)?.toInt() ?? 0;
-                                        final String replyAvatar = reply['profile_image']?.toString() ?? '';
-                                        final String replyName = reply['username']?.toString() ?? 'Anonymous';
-
-                                        return Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            CircleAvatar(
-                                              radius: 12,
-                                              backgroundColor: widget.brandColor.withOpacity(0.1),
-                                              backgroundImage: replyAvatar.isNotEmpty
-                                                  ? CachedNetworkImageProvider(_fullUrl(replyAvatar))
-                                                  : null,
-                                              child: replyAvatar.isEmpty
-                                                  ? Text(
-                                                      _getInitials(replyName),
-                                                      style: TextStyle(
-                                                        color: widget.brandColor,
-                                                        fontWeight: FontWeight.bold,
-                                                        fontSize: 9,
-                                                      ),
-                                                    )
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(
-                                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                                    children: [
-                                                      Text(
-                                                        replyName,
-                                                        style: const TextStyle(
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 11,
-                                                          color: AppColors.textPrimary,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 6),
-                                                      Text(
-                                                        _formatCommentTime(reply['createdAt'], reply['timeAgo']),
-                                                        style: const TextStyle(
-                                                          color: AppColors.textSecondary,
-                                                          fontSize: 10,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    (reply['text'] ?? reply['message'] ?? reply['comment'] ?? '').toString(),
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: AppColors.textPrimary,
-                                                      height: 1.3,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            GestureDetector(
-                                              onTap: () => _toggleCommentLike(reply),
-                                              behavior: HitTestBehavior.opaque,
-                                              child: Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      replyLiked ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
-                                                      color: replyLiked ? widget.brandColor : AppColors.textSecondary,
-                                                      size: 13,
-                                                    ),
-                                                    if (replyLikesCount > 0) ...[
-                                                      const SizedBox(width: 3),
-                                                      Text(
-                                                        "$replyLikesCount",
-                                                        style: TextStyle(
-                                                          fontSize: 10,
-                                                          fontWeight: FontWeight.w600,
-                                                          color: replyLiked ? widget.brandColor : AppColors.textSecondary,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                  ),
                                 ],
-                              ],
+                              ),
                             );
                           },
                         ),
@@ -2980,86 +3277,89 @@ class _CommentsSheetContentState extends State<CommentsSheetContent> {
               ),
 
             // Bottom Sticky Text Input Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: AppColors.border, width: 1),
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    top: BorderSide(color: AppColors.border, width: 1),
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: widget.brandColor.withOpacity(0.1),
-                    backgroundImage: (_currentUserAvatar != null && _currentUserAvatar!.isNotEmpty)
-                        ? CachedNetworkImageProvider(_fullUrl(_currentUserAvatar))
-                        : null,
-                    child: (_currentUserAvatar == null || _currentUserAvatar!.isEmpty)
-                        ? Text(
-                            _getInitials(_currentUsername),
-                            style: TextStyle(
-                              color: widget.brandColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: widget.brandColor.withOpacity(0.1),
+                      backgroundImage: (_currentUserAvatar != null && _currentUserAvatar!.isNotEmpty)
+                          ? CachedNetworkImageProvider(_fullUrl(_currentUserAvatar))
+                          : null,
+                      child: (_currentUserAvatar == null || _currentUserAvatar!.isEmpty)
+                          ? Text(
+                              _getInitials(_currentUsername),
+                              style: TextStyle(
+                                color: widget.brandColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: const Color(0xFFE4E7EC),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
                             ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: const Color(0xFFE4E7EC),
-                          width: 1.5,
+                          ],
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          controller: _commentController,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: const InputDecoration(
+                            hintText: "Add a comment...",
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                            hintStyle: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextField(
-                        controller: _commentController,
-                        style: const TextStyle(fontSize: 14),
-                        decoration: const InputDecoration(
-                          hintText: "Add a comment...",
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10),
-                          hintStyle: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                          ),
+                          onSubmitted: (_) => _addComment(),
                         ),
-                        onSubmitted: (_) => _addComment(),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: _addComment,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: widget.brandColor.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.send_rounded,
-                        color: widget.brandColor,
-                        size: 18,
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: _addComment,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: widget.brandColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.send_rounded,
+                          color: widget.brandColor,
+                          size: 18,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

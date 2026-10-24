@@ -1,5 +1,50 @@
 const Draft = require('../models/Draft');
+const { cleanExtractedText } = require('../utils/textCleaner.util');
 const { successResponse, errorResponse } = require('../utils/response.util');
+
+// Helper to clean and autocorrect Tamil spelling and typography across all draft page blocks
+const cleanContentPages = (content) => {
+  if (!content) return content;
+  if (Array.isArray(content)) {
+    return content.map(page => {
+      if (!page || typeof page !== 'object') return page;
+      if (Array.isArray(page.blocks)) {
+        return {
+          ...page,
+          blocks: page.blocks.map(b => {
+            if (b && b.type === 'text' && typeof b.text === 'string' && b.text.trim()) {
+              return { ...b, text: cleanExtractedText(b.text) };
+            }
+            return b;
+          })
+        };
+      }
+      return page;
+    });
+  } else if (content && typeof content === 'object') {
+    if (Array.isArray(content.pages)) {
+      return {
+        ...content,
+        pages: content.pages.map(page => {
+          if (!page || typeof page !== 'object') return page;
+          if (Array.isArray(page.blocks)) {
+            return {
+              ...page,
+              blocks: page.blocks.map(b => {
+                if (b && b.type === 'text' && typeof b.text === 'string' && b.text.trim()) {
+                  return { ...b, text: cleanExtractedText(b.text) };
+                }
+                return b;
+              })
+            };
+          }
+          return page;
+        })
+      };
+    }
+  }
+  return content;
+};
 
 const saveDraft = async (req, res, next) => {
   try {
@@ -8,6 +53,9 @@ const saveDraft = async (req, res, next) => {
     if (!userId) {
       userId = new (require('mongoose').Types.ObjectId)();
     }
+
+    const cleanedTitle = title ? cleanExtractedText(title).trim() : '';
+    const cleanedCaption = caption ? cleanExtractedText(caption).trim() : '';
 
     let parsedContent = [];
     if (content) {
@@ -25,7 +73,7 @@ const saveDraft = async (req, res, next) => {
               letterSpacing: 0.0,
               pageMargin: 50.0,
               textAlign: 0,
-              blocks: [{ type: 'text', text: trimmed }]
+              blocks: [{ type: 'text', text: cleanExtractedText(trimmed) }]
             }];
           }
         }
@@ -33,6 +81,7 @@ const saveDraft = async (req, res, next) => {
         parsedContent = content;
       }
     }
+    parsedContent = cleanContentPages(parsedContent);
 
     let coverImage = '';
     if (req.files && req.files.cover_image && req.files.cover_image.length > 0) {
@@ -57,8 +106,8 @@ const saveDraft = async (req, res, next) => {
     }
 
     if (draft) {
-      draft.title = title || draft.title;
-      draft.caption = caption || draft.caption;
+      draft.title = cleanedTitle || draft.title;
+      draft.caption = cleanedCaption || draft.caption;
       if (parsedContent && (Array.isArray(parsedContent) ? parsedContent.length > 0 : true)) {
         draft.content = parsedContent;
         draft.markModified('content');
@@ -69,8 +118,8 @@ const saveDraft = async (req, res, next) => {
     } else {
       draft = await Draft.create({
         user_id: userId,
-        title: title || 'Untitled Draft',
-        caption: caption || '',
+        title: cleanedTitle || 'Untitled Draft',
+        caption: cleanedCaption || '',
         categoryId: 'CAT00000004',
         category: 'Ryitu',
         content: parsedContent,

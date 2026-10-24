@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform, File;
 import 'package:dmk_project/home.dart';
 import 'package:dmk_project/api_config.dart';
+import 'package:dmk_project/drafts_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
@@ -162,8 +163,41 @@ const _kBaminiBasic = {
   'c': 'ஜ', 'S': 'ஷ', 'n\\': 'ஸ', 'h': 'ா'
 };
 
+bool isTamilDocumentOrPassage(String text) {
+  if (text.isEmpty) return false;
+
+  final tamilCount = RegExp(r'[\u0B80-\u0BFF]').allMatches(text).length;
+  final engCount = RegExp(r'[a-zA-Z]').allMatches(text).length;
+
+  if (tamilCount > 0) {
+    if (tamilCount >= engCount) return true;
+    if (tamilCount >= 15 && (tamilCount / (tamilCount + engCount)) >= 0.15) return true;
+  }
+
+  final baminiMatches = RegExp(r'[fqrQljegkaytospwdcSH];|fs;').allMatches(text).length;
+  if (baminiMatches >= 3 && (text.contains('tzf;fk;') || text.contains('thœj;Jf;fs;') || engCount < 30 || baminiMatches > engCount * 0.1)) {
+    return true;
+  }
+
+  if (text.contains('æÒΩநீசு') || text.contains('ßæ∫ı') || text.contains('æÒΩ£˜') || text.contains('taNNIr tEcam')) {
+    return true;
+  }
+  final macRomanDistinctive = RegExp(r'[æÒΩß∫Ú¡ÛÃÕ‹Ô‡›⁄˙˛ÌØÓÉ˚ıˆ˝]').allMatches(text).length;
+  if (macRomanDistinctive >= 3 && (tamilCount > 0 || engCount < 30 || macRomanDistinctive > engCount * 0.15)) {
+    return true;
+  }
+
+  final cp1252TamilMatches = RegExp(r'[\x80\x82-\x86\x8C\x8E\x8F\x91-\x95\x98\x9C\x9E]').allMatches(text).length;
+  if (cp1252TamilMatches >= 3 && tamilCount > 0) {
+    return true;
+  }
+
+  return false;
+}
+
 String decodeBaminiIfDetected(String text) {
   if (text.isEmpty) return text;
+  if (!isTamilDocumentOrPassage(text)) return text;
 
   final baminiMatches = RegExp(r'[fqrQljegkaytospwdcSH];|fs;').allMatches(text).length;
   if (baminiMatches < 3 && !text.contains('tzf;fk;')) {
@@ -192,6 +226,7 @@ String decodeBaminiIfDetected(String text) {
 
 String decodeLegacyTamil(String text) {
   if (text.isEmpty) return text;
+  if (!isTamilDocumentOrPassage(text)) return text;
 
   final hasLegacyGlyphs = RegExp(r'[Ƭ«¬¢²©§¸•˜ªº¶´£\u0192\u201E\u2026\u2020\u20AC\u201A\u0152\u0153\u017E\u201D\u017D\u2018\u2019\u201C\u01AC\u01AB\u02DC\x7F\u0080-\u009F]').hasMatch(text);
   final hasTamilWithAscii = RegExp(r'([\u0B80-\u0BFF]\s*[{}\|~tuvxyz])|([{}|~tuvxyz]\s*[\u0B80-\u0BFF])').hasMatch(text);
@@ -318,10 +353,11 @@ String decodeLegacyTamil(String text) {
 
 String decodeMacTamilPDF(String text) {
   if (text.isEmpty) return text;
+  if (!isTamilDocumentOrPassage(text)) return text;
 
-  final signature = RegExp(r'[∏ß®°ıÒ≈Û–ÃÚæ±˝¡Ω∫ŸÏ√˚Ù˛ÌØ⁄ˆ∆Ó¥¨Õ˙÷◊¤≤μÉ‹Ô‡˘›Ñ∞Ö≥·ÆÀ—ÜÊ∑ÎÁ]');
+  final signature = RegExp(r'[æÒΩß∫Ú¡ÛÃÕ‹Ô‡›⁄˙˛ÌØÓÉ˚ıˆ˝]');
   final matches = signature.allMatches(text);
-  if (matches.length < 3 && !text.contains('æÒΩநீசு') && !text.contains('ßæ∫ı')) {
+  if (matches.length < 3 && !text.contains('æÒΩநீசு') && !text.contains('ßæ∫ı') && !text.contains('taNNIr tEcam')) {
     return text;
   }
 
@@ -415,6 +451,7 @@ String decodeMacTamilPDF(String text) {
 
 String decodeLateVolumeDtpTamil(String text) {
   if (text.isEmpty) return text;
+  if (!isTamilDocumentOrPassage(text)) return text;
 
   final dtpMatches = RegExp(r'(?:(?:^|[\s\p{P}])ன[க-ஹ]|ம[வதபள]|ம[பநசகவத]ா|ன[கசதபவ]ா)', unicode: true).allMatches(text).length;
   final hasSpecialMarkers = text.contains('மவந்மத') || text.contains('னபண்களின்') || text.contains('பானற') || text.contains('பனனயன்') || text.contains('கைமன');
@@ -633,16 +670,31 @@ String cleanExtractedTamilText(String raw) {
     (m) => '${m[1]}${m[2]}',
   );
 
-  text = decodeBaminiIfDetected(text);
-  text = decodeLegacyTamil(text);
-  text = decodeMacTamilPDF(text);
-  text = decodeLateVolumeDtpTamil(text);
-  text = text.replaceAll('\x7F', '');
+  final isTamil = isTamilDocumentOrPassage(text);
 
-  text = normalizeVisualPreBaseVowels(text);
-  text = normalizeTamilKerningAndSyllables(text);
+  if (isTamil) {
+    text = decodeBaminiIfDetected(text);
+    text = decodeLegacyTamil(text);
+    text = decodeMacTamilPDF(text);
+    text = decodeLateVolumeDtpTamil(text);
+    text = text.replaceAll('\x7F', '');
 
-  text = text.replaceAll(RegExp(r'\u0BCD\u0BCD+'), '\u0BCD');
+    text = normalizeVisualPreBaseVowels(text);
+    text = normalizeTamilKerningAndSyllables(text);
+
+    text = text.replaceAll(RegExp(r'\u0BCD\u0BCD+'), '\u0BCD');
+  } else {
+    text = text.replaceAll('\x7F', '');
+    text = text.replaceAllMapped(
+      RegExp(r'([a-zA-Z])[\u0B80-\u0BFF]+([a-zA-Z])'),
+      (m) => '${m[1]}${m[2]}',
+    );
+    final tMatches = RegExp(r'[\u0B80-\u0BFF]').allMatches(text).length;
+    final eMatches = RegExp(r'[a-zA-Z]').allMatches(text).length;
+    if (tMatches < 5 && eMatches > 50) {
+      text = text.replaceAll(RegExp(r'[\u0B80-\u0BFF]'), '');
+    }
+  }
 
   // Remove unwanted single-letter orphans at end of lines:
   // If a line ends with a single character (Tamil or Latin) preceded by a space,
@@ -1293,10 +1345,6 @@ class _WritePageState extends State<WritePage> {
       if (_pageController.hasClients) {
         _pageController.jumpToPage(0);
       }
-
-      try {
-        await saveDraft(silent: true);
-      } catch (_) {}
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2459,9 +2507,11 @@ class _WritePageState extends State<WritePage> {
           _draftId = data["draft_id"].toString();
         }
 
+        DraftsManager.instance.notifyDraftsChanged();
+
         if (!silent && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Draft Saved Automatically")),
+            const SnackBar(content: Text("Draft saved successfully")),
           );
         }
       } else {
@@ -2513,6 +2563,7 @@ class _WritePageState extends State<WritePage> {
 
     if (result == true) {
       await saveDraft();
+      DraftsManager.instance.notifyDraftsChanged();
     }
 
     if (mounted) {
@@ -2936,11 +2987,14 @@ class _WritePageState extends State<WritePage> {
           toolbarHeight: 70,
           title: Row(
             children: [
-              Image.asset(
-                'assets/images/ryitu_logo_round.png',
-                width: 32,
-                height: 32,
-                fit: BoxFit.contain,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/images/ryitu_logo_round.png',
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(width: 8),
               Text(
@@ -3500,7 +3554,6 @@ class _WritePageState extends State<WritePage> {
             ),
             // Bottom Toolbar
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
@@ -3511,9 +3564,13 @@ class _WritePageState extends State<WritePage> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -3621,6 +3678,8 @@ class _WritePageState extends State<WritePage> {
                 ],
               ),
             ),
+          ),
+        ),
           ],
         ),
       ),
@@ -3677,8 +3736,11 @@ class _WritePageState extends State<WritePage> {
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: Column(
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3763,7 +3825,9 @@ class _WritePageState extends State<WritePage> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   void _showStylePicker() {
@@ -3790,8 +3854,10 @@ class _WritePageState extends State<WritePage> {
                 color: Color(0xFFF9F9F7),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
               ),
-              child: Column(
-                children: [
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  children: [
                   // Handle
                   Container(
                     margin: const EdgeInsets.only(top: 12, bottom: 8),
@@ -4205,7 +4271,8 @@ class _WritePageState extends State<WritePage> {
                   ),
                 ],
               ),
-            );
+            ),
+          );
           },
         );
       },
@@ -4533,10 +4600,12 @@ class _CoverEditorPageState extends State<CoverEditorPage> {
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        child: Column(
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
           children: [
             Center(
               child: GestureDetector(
@@ -4764,6 +4833,7 @@ class _CoverEditorPageState extends State<CoverEditorPage> {
           ],
         ),
       ),
+    ),
     );
   }
 }
@@ -5013,6 +5083,7 @@ class _PostPageState extends State<PostPage> {
               Uri.parse("${ApiConfig.apiBaseUrl}/draft/${widget.draftId}"),
               headers: {"Authorization": "Bearer $token"},
             );
+            DraftsManager.instance.notifyDraftsChanged();
           } catch (_) {}
         }
 
@@ -5079,10 +5150,12 @@ class _PostPageState extends State<PostPage> {
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        child: Column(
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
@@ -5205,10 +5278,11 @@ class _PostPageState extends State<PostPage> {
                       ],
                     ),
             ),
-            const SizedBox(height: 60),
+            const SizedBox(height: 40),
           ],
         ),
       ),
+    ),
     );
   }
 

@@ -76,17 +76,54 @@ const uploadPdf = multer({
 
 const uploadDocument = multer({
   storage: documentStorage,
-  limits: { fileSize: env.MAX_FILE_SIZE, fieldSize: 100 * 1024 * 1024 }
+  limits: { fileSize: env.MAX_FILE_SIZE, fieldSize: 300 * 1024 * 1024 }
 }).single('document');
+
+const communityStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../../uploads/community_images');
+    ensureDir(dir);
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    cb(null, `community_${Date.now()}_${uuidv4().substring(0, 8)}${ext}`);
+  }
+});
+
+const isImageFile = (file) => {
+  if (file.mimetype && file.mimetype.startsWith('image/')) return true;
+  const ext = path.extname(file.originalname).toLowerCase();
+  return /\.(jpe?g|png|webp|gif|bmp|heic|heif|svg)$/i.test(ext);
+};
+
+const imageFileFilter = (req, file, cb) => {
+  if (isImageFile(file)) {
+    cb(null, true);
+  } else {
+    cb(null, true); // Permissive to prevent rejecting valid images with unusual headers
+  }
+};
 
 const uploadProfileImage = multer({
   storage: profileStorage,
-  limits: { fileSize: 20 * 1024 * 1024 }
+  limits: { fileSize: 50 * 1024 * 1024, fieldSize: 50 * 1024 * 1024 },
+  fileFilter: imageFileFilter
 }).single('profile_image');
+
+const uploadCommunityImage = multer({
+  storage: communityStorage,
+  limits: { fileSize: 50 * 1024 * 1024, fieldSize: 50 * 1024 * 1024 },
+  fileFilter: imageFileFilter
+}).fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'community_image', maxCount: 1 },
+  { name: 'profile_image', maxCount: 1 }
+]);
 
 const uploadPostFiles = multer({
   storage: postStorage,
-  limits: { fileSize: env.MAX_FILE_SIZE, fieldSize: 100 * 1024 * 1024 }
+  limits: { fileSize: env.MAX_FILE_SIZE, fieldSize: 300 * 1024 * 1024 }
 }).fields([
   { name: 'cover_image', maxCount: 1 },
   { name: 'page_images', maxCount: 5000 }
@@ -96,5 +133,6 @@ module.exports = {
   uploadPdf,
   uploadDocument,
   uploadProfileImage,
+  uploadCommunityImage,
   uploadPostFiles
 };

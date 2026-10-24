@@ -5,3 +5,14 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Uploaded Files
+uploads/**
+!uploads/**/.gitkeep
+
+# Sensitive Firebase Keys
+*service-account*.json
+firebase-service-account.json
+
+# Scratch & test text dumps
+*.txt

@@ -5,7 +5,7 @@ class ApiConfig {
 
   // Set to true for local testing on mobile phone (via Wi-Fi / LAN)
   // Set to false to use the deployed production backend
-  static const bool useLocalBackend = false;
+  static const bool useLocalBackend = true;
 
   // Your PC's Local Network IPv4 Address on Wi-Fi/Ethernet:
   static const String localBaseUrl = 'http://192.168.29.182:3001';
@@ -13,15 +13,18 @@ class ApiConfig {
   // Production Render Deployed Backend URL
   static const String liveBaseUrl = 'https://api.ritpen.com';
 
-  static final String baseUrl = _configuredBaseUrl.isNotEmpty
+  static String activeBaseUrl = _configuredBaseUrl.isNotEmpty
       ? _configuredBaseUrl
       : (useLocalBackend ? localBaseUrl : liveBaseUrl);
 
-  static final String apiBaseUrl = '$baseUrl/api';
-  static final String forgotPasswordSendOtpUrl =
+  static String get baseUrl => activeBaseUrl;
+
+  static String get apiBaseUrl => '$baseUrl/api';
+  static String get forgotPasswordSendOtpUrl =>
       '$apiBaseUrl/auth/forgot-password/send-otp';
-  static final String forgotPasswordVerifyOtpUrl =
+  static String get forgotPasswordVerifyOtpUrl =>
       '$apiBaseUrl/auth/forgot-password/verify-otp';
-  static final String forgotPasswordResetUrl =
+  static String get forgotPasswordResetUrl =>
       '$apiBaseUrl/auth/forgot-password/reset-password';
 }
+

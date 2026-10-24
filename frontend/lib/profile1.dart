@@ -44,6 +44,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   File? _image;
   String? _networkImageUrl;
+  bool _removeImage = false;
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
 
@@ -73,7 +74,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       } else if (widget.userId.isNotEmpty && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(widget.userId)) {
         _mobileController.text = widget.userId;
       }
-      _networkImageUrl = prefs.getString("profile_image_url");
+      if (!_removeImage) {
+        _networkImageUrl = prefs.getString("profile_image_url");
+      }
     });
   }
 
@@ -128,7 +131,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               _mobileController.text = fetchedMobile;
               prefs.setString("user_mobile", fetchedMobile);
             }
-            if (fetchedImg.isNotEmpty) {
+            if (fetchedImg.isNotEmpty && !_removeImage) {
               String fullImg = fetchedImg;
               if (!fullImg.startsWith("http")) {
                 fullImg =
@@ -136,6 +139,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
               }
               _networkImageUrl = fullImg;
               prefs.setString("profile_image_url", fullImg);
+            } else if (_removeImage || fetchedImg.isEmpty) {
+              _networkImageUrl = null;
+              prefs.remove("profile_image_url");
             }
           });
         }
@@ -149,35 +155,51 @@ class _EditProfilePageState extends State<EditProfilePage> {
   // IMAGE PICKER
   // ===============================
   Future<void> _pickImage(ImageSource source) async {
-    final picked = await _picker.pickImage(source: source, imageQuality: 70);
-    if (picked != null) {
-      setState(() => _image = File(picked.path));
-
-      // Show success feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 12),
-              Text(
-                'Image selected! Click Save to update.',
-                style: TextStyle(
-                  fontFamily: 'Roboto',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF0729E8),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
       );
+      if (picked != null && mounted) {
+        setState(() {
+          _image = File(picked.path);
+          _removeImage = false;
+        });
+
+        // Show success feedback
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Text(
+                  'Image selected! Click Save to update.',
+                  style: TextStyle(
+                    fontFamily: 'Roboto',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF0729E8),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick image: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -216,13 +238,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
         request.fields["email"] = email;
 
         if (_image != null) {
-          final mimeType = lookupMimeType(_image!.path);
-          final mimeSplit = mimeType?.split('/') ?? ['image', 'jpeg'];
+          final mimeType = lookupMimeType(_image!.path) ?? 'image/jpeg';
+          final mimeSplit = mimeType.contains('/') ? mimeType.split('/') : ['image', 'jpeg'];
           request.files.add(
             await http.MultipartFile.fromPath(
               "profile_image",
               _image!.path,
-              contentType: MediaType(mimeSplit[0], mimeSplit[1]),
+              contentType: MediaType(
+                mimeSplit.isNotEmpty ? mimeSplit[0] : 'image',
+                mimeSplit.length > 1 ? mimeSplit[1] : 'jpeg',
+              ),
             ),
           );
         }
@@ -259,7 +284,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
           }
         }
         
-        final errorMsg = jsonDecode(response.body)["message"] ?? "Registration failed";
+        String errorMsg = "Registration failed";
+        try {
+          final errJson = jsonDecode(response.body);
+          errorMsg = errJson["message"] ?? errJson["error"] ?? errorMsg;
+        } catch (_) {
+          if (response.body.isNotEmpty) errorMsg = response.body;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Registration failed: $errorMsg"), backgroundColor: Colors.red),
         );
@@ -282,14 +313,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
         request.fields["username"] = username;
         request.fields["email"] = email;
 
-        if (_image != null) {
-          final mimeType = lookupMimeType(_image!.path);
-          final mimeSplit = mimeType?.split('/') ?? ['image', 'jpeg'];
+        if (_removeImage) {
+          request.fields["remove_image"] = "true";
+          request.fields["profile_image"] = "";
+        } else if (_image != null) {
+          final mimeType = lookupMimeType(_image!.path) ?? 'image/jpeg';
+          final mimeSplit = mimeType.contains('/') ? mimeType.split('/') : ['image', 'jpeg'];
           request.files.add(
             await http.MultipartFile.fromPath(
               "profile_image",
               _image!.path,
-              contentType: MediaType(mimeSplit[0], mimeSplit[1]),
+              contentType: MediaType(
+                mimeSplit.isNotEmpty ? mimeSplit[0] : 'image',
+                mimeSplit.length > 1 ? mimeSplit[1] : 'jpeg',
+              ),
             ),
           );
         }
@@ -314,7 +351,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
             }
             await prefs.setString("user_email", data["Email"] ?? data["email"] ?? email);
             final updatedImg = data["ProfileImage"] ?? data["profile_image"];
-            if (updatedImg != null && updatedImg.toString().isNotEmpty) {
+            if (_removeImage) {
+              await prefs.remove("profile_image_url");
+              await prefs.remove("profile_image_path");
+              await prefs.remove("profile_image");
+              _networkImageUrl = null;
+              _removeImage = false;
+            } else if (updatedImg != null && updatedImg.toString().isNotEmpty) {
               await prefs.setString("profile_image_url", "${ApiConfig.baseUrl}/uploads/profile_images/$updatedImg");
               await prefs.remove("profile_image_path");
             }
@@ -330,7 +373,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
           }
         }
 
-        final errorMsg = jsonDecode(response.body)["message"] ?? "Update failed";
+        String errorMsg = "Update failed";
+        try {
+          final errJson = jsonDecode(response.body);
+          errorMsg = errJson["message"] ?? errJson["error"] ?? errorMsg;
+        } catch (_) {
+          if (response.body.isNotEmpty) errorMsg = response.body;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Update failed: $errorMsg"), backgroundColor: Colors.red),
         );
@@ -522,15 +571,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   /// Professional Avatar with Enhanced Styling
   Widget _buildProfessionalAvatar() {
-    ImageProvider provider;
+    ImageProvider? provider;
 
-    if (_image != null) {
-      provider = FileImage(_image!);
-    } else if (_networkImageUrl != null && _networkImageUrl!.isNotEmpty) {
-      provider = CachedNetworkImageProvider(_networkImageUrl!);
-    } else {
-      provider = const NetworkImage('https://i.stack.imgur.com/l60Hf.png');
+    if (!_removeImage) {
+      if (_image != null) {
+        provider = FileImage(_image!);
+      } else if (_networkImageUrl != null && _networkImageUrl!.isNotEmpty) {
+        provider = CachedNetworkImageProvider(_networkImageUrl!);
+      }
     }
+
+    final initial = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()[0].toUpperCase()
+        : 'U';
 
     return Stack(
       alignment: Alignment.center,
@@ -544,12 +597,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0729E8).withOpacity(0.3),
+                  color: const Color(0xFF0729E8).withValues(alpha: 0.25),
                   blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -558,10 +611,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
             child: CircleAvatar(
               radius: 60,
               backgroundImage: provider,
-              onBackgroundImageError: (exception, stackTrace) {
-                // Graceful fallback on broken/404 image
-              },
-              backgroundColor: Colors.grey.shade200,
+              onBackgroundImageError: provider != null ? (exception, stackTrace) {} : null,
+              backgroundColor: const Color(0xFF0729E8).withValues(alpha: 0.08),
+              child: provider == null
+                  ? Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 38,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0729E8),
+                      ),
+                    )
+                  : null,
             ),
           ),
         ),
@@ -686,15 +747,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   /// Show Image Picker Options
   void _showImagePickerOptions() {
+    final bool hasImage = !_removeImage &&
+        (_image != null || (_networkImageUrl != null && _networkImageUrl!.isNotEmpty));
+
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => SafeArea(
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library_rounded),
+              leading: const Icon(Icons.photo_library_rounded, color: AppColors.brand),
               title: const Text(
-                'Gallery',
+                'Gallery (கேலரி)',
                 style: TextStyle(
                   fontFamily: 'Roboto',
                   fontWeight: FontWeight.w600,
@@ -706,9 +773,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt_rounded),
+              leading: const Icon(Icons.camera_alt_rounded, color: AppColors.brand),
               title: const Text(
-                'Camera',
+                'Camera (கேமரா)',
                 style: TextStyle(
                   fontFamily: 'Roboto',
                   fontWeight: FontWeight.w600,
@@ -719,6 +786,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 _pickImage(ImageSource.camera);
               },
             ),
+            if (hasImage)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                title: const Text(
+                  'Remove Profile Photo (படத்தை நீக்கு)',
+                  style: TextStyle(
+                    fontFamily: 'Roboto',
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _image = null;
+                    _networkImageUrl = null;
+                    _removeImage = true;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Profile photo removed. Click Save to apply.'),
+                      backgroundColor: Colors.orange,
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                },
+              ),
           ],
         ),
       ),

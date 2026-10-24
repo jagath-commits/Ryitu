@@ -17,7 +17,10 @@ router.get('/draftposts/:userId', optionalAuth, postController.getUserDrafts);
 
 // Post interactions
 router.post('/toggleSupport/:id', optionalAuth, postController.toggleSupport);
+router.post('/:id/support', optionalAuth, postController.toggleSupport);
+router.post('/:id/like', optionalAuth, postController.toggleSupport);
 router.post('/toggleSave/:id', optionalAuth, postController.toggleSave);
+router.post('/:id/save', optionalAuth, postController.toggleSave);
 router.post('/view/:id', postController.incrementView);
 
 // Comments routes
@@ -25,6 +28,8 @@ router.get('/:postId/comments', optionalAuth, postController.getComments);
 router.post('/:postId/comments', optionalAuth, postController.addComment);
 router.post('/comments/:commentId/toggleLike', optionalAuth, postController.toggleCommentLike);
 router.delete('/comments/:commentId', optionalAuth, postController.deleteComment);
+router.delete('/comment/:commentId', optionalAuth, postController.deleteComment);
+router.delete('/:id/comments/:commentId', optionalAuth, postController.deleteComment);
 
 // Standard Post CRUD
 router.get('/', postController.getPosts);

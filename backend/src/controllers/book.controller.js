@@ -24,14 +24,26 @@ const uploadBook = async (req, res, next) => {
     const fileSize = req.file.size;
     const pdfFileName = req.file.filename;
 
-    // Calculate actual page count using pdf-lib
+    // Calculate actual page count using pdf-lib with pdf-parse fallback
     let pageCount = 1;
     try {
       const pdfBytes = await fs.promises.readFile(req.file.path);
       const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
       pageCount = pdfDoc.getPageCount() || 1;
     } catch (parseErr) {
-      console.warn('[PDF Parse] Unable to count pages with pdf-lib, defaulting to 1:', parseErr.message);
+      console.warn('[PDF Parse] Unable to count pages with pdf-lib:', parseErr.message);
+    }
+
+    if (pageCount <= 1) {
+      try {
+        const testBuffer = await fs.promises.readFile(req.file.path);
+        const testParser = new PDFParse({ data: testBuffer });
+        await testParser.load();
+        if (testParser.doc && testParser.doc.numPages > 1) {
+          pageCount = testParser.doc.numPages;
+        }
+        await testParser.destroy();
+      } catch (_) {}
     }
 
     // Generate beautiful custom cover
@@ -252,13 +264,24 @@ const getBookPageText = async (req, res, next) => {
     const fileBuffer = await fs.promises.readFile(pdfPath);
     parser = new PDFParse({ data: fileBuffer });
     await parser.load();
-    const pageResult = await parser.getPageText(pageNum);
 
     let rawText = '';
-    if (pageResult && typeof pageResult.text === 'string') {
-      rawText = pageResult.text;
-    } else if (pageResult && typeof pageResult === 'string') {
-      rawText = pageResult;
+    try {
+      const pageObj = await parser.doc.getPage(pageNum);
+      try {
+        const pageResult = await parser.getPageText(pageObj, {});
+        if (pageResult && typeof pageResult.text === 'string') {
+          rawText = pageResult.text;
+        } else if (pageResult && typeof pageResult === 'string') {
+          rawText = pageResult;
+        }
+      } catch (_) {
+        const tc = await pageObj.getTextContent();
+        rawText = (tc.items || []).map(it => it.str || '').join(' ');
+      }
+      pageObj.cleanup();
+    } catch (pageErr) {
+      console.warn(`[Book Page] Error getting page ${pageNum}:`, pageErr.message);
     }
 
     // Clean and normalize extracted Tamil text (Bamini, legacy fonts, kerning, Unicode)

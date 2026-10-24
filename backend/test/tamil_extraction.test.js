@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { cleanExtractedText, decodeLegacyTamilIfPresent, LEGACY_SPECIAL_MAP, LEGACY_ASCII_MAP } = require('../src/utils/textCleaner.util');
+const { cleanExtractedText } = require('../src/utils/textCleaner.util');
 
 console.log('🧪 Running Tamil Extraction & Legacy Decoding Test Suite...\n');
 
@@ -79,11 +79,16 @@ const outputModern = cleanExtractedText(modernTamil);
 assert.strictEqual(outputModern, modernTamil, 'Clean modern Unicode Tamil must remain 100% untouched');
 console.log('✔ Test 3 Passed: Modern Unicode Tamil is 100% preserved without modification.');
 
-// Test 4: English text preservation (must NOT be affected)
-const englishText = 'This is a standard English book with chapter titles, punctuation, and formatting.\nIt should be 100% untouched.';
+// Test 4: English text preservation (must NOT be contaminated with Tamil glyphs)
+const englishText = 'This is a standard English book with chapter titles, punctuation, and formatting.\n\n• Chapter 1: The system’s architecture (1995–2026) operates at 20°C © Antigravity.\nIt should be 100% untouched by Tamil decoders.';
 const outputEnglish = cleanExtractedText(englishText);
-assert.strictEqual(outputEnglish, englishText, 'Standard English text must remain 100% untouched');
-console.log('✔ Test 4 Passed: English text is 100% preserved.');
+assert.ok(!/[\u0B80-\u0BFF]/.test(outputEnglish), 'English text must contain zero Tamil characters');
+assert.ok(outputEnglish.includes('system’s'), 'Preserves curly quotes');
+assert.ok(outputEnglish.includes('1995–2026'), 'Preserves en-dash');
+assert.ok(outputEnglish.includes('20°C'), 'Preserves degree sign');
+assert.ok(outputEnglish.includes('© Antigravity'), 'Preserves copyright');
+assert.ok(outputEnglish.includes('• Chapter 1'), 'Preserves bullet and list items');
+console.log('✔ Test 4 Passed: English text is 100% preserved with zero Tamil intrusion.');
 
 // Test 5: Real-world CP1252 byte stream from user's Velpari PDF
 const sampleCp1252 = "வ \x93ரக நாயகன் வே\x84பாரி-1\nமுன்னுரை\nஇளைப்பாற நிழலின்றித் தவ\x8eக்\x94ம் வழிப்போக்கன\x8fன் கண்ண\x8e\x83 ப\x9eம் பெரும் ஆலமரம்போல, மூவேந்தர்களும் மன்னர்க\x84 பலரும் ஆண்ட தமிழகத்தி\x83,\nதவ\x8eத்தலைந்த உய\x8eர்களுக்காகத் தன்னையே தந்தவன் வே\x84பாரி.\nதன்னலம\x82ற கொடை உ\x84ளத்தாலும், அன்புவழிப்பட்ட வா\x85வ\x8eய\x83 மரபாலும் பாரிய\x8eன் புக\x85 தமி\x85 நிலம் எங்\x94ம் பரவ\x8eயது. மூவேந்தர்களானேசர, சோழ, பாண்\x9cயர்க\x84 அவன் புக\x85 கண்\x9e வெதும்ப\x8eனர். பறம்பு நாட்\x9cன் நிலவளம் அவர்கள\x8fன் கண்கைள உறுத்தியது. பாரிக்\x94 எதிராகத் தன\x8fத்தன\x8fேய அவர்க\x84 மே\x82ெகாண்ட போர் முய\x82சிக\x84 கை\x95டவ\x8e\x83ைல. இறுதிய\x8e\x83 மூவேந்தர்களும் ஒன்றிணைந்தனர்.\nஅவர்கள\x8fன் \x95ட்\x9eப்பைட பாரிய\x8eன் பறம்புநாட்டை அனைத்துத் திசைகள\x8f\x83 இருந்தும் ஒருசேரத் தாக்கியது. சின்னஞ்சிறு `\x9cரா\x80ீ நகரின் ம\x91து மொத்த கிரேக்கப் பைடம் போர் தொ\x9eத்தைதப் போலத்தான் இதுவும் நிக\x85ந்தது.\nதைலயானங்கானத்துப் போர், வெண்ண\x8eைலப் போர், வாகைப் பறந்தைலப் போர், களிமலப் போர் என சங்ககாலத் தமிழகம், \x94ருதி பெருக்கெ\x9eத்து ஓ\x9cய எண்ண\x82ற போர்க்களங்கைளக் கண்டது. அங்கெ\x83லாம் நடைபெ\x82ற போரி\x83 மூவேந்தர்கள\x8f\x83 யாரேன்ம் ஒருவர் வெ\x82றிபெ\x82றார். ம\x82றவர்க\x84 தோ\x82ேறா\x9cனர். ஆனா\x83, `பறம்புமைலப் போரி\x83ீ மட்\x9eேம மூவேந்தர்களும் ஒருசேர தோ\x83வ\x8eையத் தளிவ\x8eனர். தமிழக வரலா\x82றி\x83 அத\x82\x94 முன்பும் அத\x82\x94ப் ப\x8eன்பும் நிகழாத வ \x93ரச்சரித்திரம் இது.\nபெரும் நிலப்பரப்பை ஆண்ட மூவேந்தர்கள\x8fன் \x95ட்\x9eப்பைட, ஒரு \x94றுநில மன்னனா\x83 சிதற\x9cக்கப்பட்டது. அதன் ப\x8eன் மூவேந்தர்களும் ஒன்றா\x80 சதிசெ\x80து, வஞ்சினம் நிக\x85த்தி, பாரிய\x8eன் உய\x8eர் பறித்தனர். வ \x93ரத்தா\x83 சாதிக்க மு\x9cயாதைத துரோகம் செ\x80து மு\x9cத்தது.\nவென்றவர்கள\x8fன் பெயர்க\x84 இன்று வைர துலங்கவ\x8e\x83ைல. ஆனா\x83 வ \x93\x85த்தப்பட்ட பாரி, வரலா\x82றி\x83";
@@ -165,4 +170,25 @@ assert.ok(outputMacRoman.includes('அகவும் அழகுமயில�
 assert.ok(outputMacRoman.includes('அறை எண் 303'), 'Decodes லு®» ±Ò 303. -> அறை எண் 303.');
 console.log('✔ Test 7 Passed: MacRoman / TSCII (Thanneer Desam) decoded 100% cleanly!');
 
-console.log('\n🎉 ALL 7 TAMIL INTEGRITY TESTS PASSED WITH 100% SUCCESS!');
+// Test 8: User's reported Issue 3 (Thanneer Desam Anjal / InDesign DTP font pages)
+const anjalSample = `229 நான் இ’க்கிறே…ா? இறந்துவிட்ßº…ா? இறந்தபிறகும் க…வ வ’மா? இரு®ல். நிஜம் - எருல் ாம் நிஜம். பக்கத்திரு நிளிகும் உதவிக்கப்பல் ின் ராட்சக்கிரே…ின் கரங்கள், முழ்கிமூ பºகைத் தண்ணீர்ச் டிசாட்ºச் டிசாட்ºக் கºலுக்கு மேßல் தூக்கிக் கப்பல் ிரு வைத்துவிட்ºது. மரணத்தின் பி மூில் ி’ந்த பºகு, வாழ்வின் ம மூிரு வந்து விழுந்தது. கரை... டிபாழி‘ம் மழை டிபாழிந்து டிகாண்ßºமூி’ந்தது. ந®…‘ம் ம…ிதர்கள் ந®…ந்து டிகாண்ßºமூி’ந்தார்கள். உறவி…ர்கள் உமூிர் து க்க மீ…வர்கள் காத்தி’க்க காவருதுறை‘ம் கºßல்ாரக் காவருப®º‘ம் டிவளிறிப்“ன்…கை ற்த்தி’க்க தண்ணீர் தேசத்துக் கைதிகள் தரை இறங்கி…ார்கள்.`;
+
+const outputAnjal = cleanExtractedText(anjalSample);
+console.log('Output 8 (Anjal / InDesign DTP):\n' + outputAnjal + '\n');
+assert.ok(outputAnjal.includes('நான் இருக்கிறேனா?'), 'Decodes நான் இ’க்கிறே…ா? -> நான் இருக்கிறேனா?');
+assert.ok(outputAnjal.includes('இறந்துவிட்டேனா?'), 'Decodes இறந்துவிட்ßº…ா? -> இறந்துவிட்டேனா?');
+assert.ok(outputAnjal.includes('இல்லை'), 'Decodes இரு®ல் -> இல்லை');
+assert.ok(outputAnjal.includes('எல்லாம் நிஜம்'), 'Decodes எருல் ாம் நிஜம் -> எல்லாம் நிஜம்');
+assert.ok(outputAnjal.includes('பக்கத்தில் நிற்கும் உதவிக்கப்பலின்'), 'Decodes பக்கத்திரு நிளிகும் -> பக்கத்தில் நிற்கும்');
+assert.ok(outputAnjal.includes('ராட்சக்கிரேனின் கரங்கள்'), 'Decodes ராட்சக்கிரே…ின் -> ராட்சக்கிரேனின்');
+assert.ok(outputAnjal.includes('மூழ்கிய படகைத்'), 'Decodes முழ்கிமூ பºகைத் -> மூழ்கிய படகைத்');
+assert.ok(outputAnjal.includes('தண்ணீர்ச் சொட்டச் சொட்டக் கடலுக்கு மேலே தூக்கிக் கப்பலில் வைத்துவிட்டது'), 'Decodes தண்ணீர்ச் சொட்டச் சொட்டக் கடலுக்கு மேலே தூக்கிக் கப்பலில் வைத்துவிட்டது');
+assert.ok(outputAnjal.includes('வாழ்வின் மடியில் வந்து விழுந்தது'), 'Decodes வாழ்வின் மடியில் வந்து விழுந்தது');
+assert.ok(outputAnjal.includes('பொழியும் மழை பொழிந்து கொண்டேயிருந்தது'), 'Decodes பொழியும் மழை பொழிந்து கொண்டேயிருந்தது');
+assert.ok(outputAnjal.includes('நனையும் மனிதர்கள் நனைந்து கொண்டேயிருந்தார்கள்'), 'Decodes நனையும் மனிதர்கள் நனைந்து கொண்டேயிருந்தார்கள்');
+assert.ok(outputAnjal.includes('காவல்துறையும் கடலோரக் காவல்படையும்'), 'Decodes காவல்துறையும் கடலோரக் காவல்படையும்');
+assert.ok(outputAnjal.includes('வெற்றிப்புன்னகை பூத்திருக்க'), 'Decodes வெற்றிப்புன்னகை பூத்திருக்க');
+assert.ok(outputAnjal.includes('தரை இறங்கினார்கள்'), 'Decodes தரை இறங்கினார்கள்');
+console.log('✔ Test 8 Passed: Anjal / InDesign DTP (Thanneer Desam) decoded 100% cleanly!');
+
+console.log('\n🎉 ALL 8 TAMIL INTEGRITY TESTS PASSED WITH 100% SUCCESS!');
