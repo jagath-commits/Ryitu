@@ -9,7 +9,7 @@ module.exports = {
   JWT_SECRET: process.env.JWT_SECRET || 'pdf_reader_secret_key_change_in_production',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
   UPLOAD_DIR: process.env.UPLOAD_DIR || 'uploads',
-  MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE, 10) || 250 * 1024 * 1024, // 250MB
+  MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE, 10) || 100 * 1024 * 1024, // 100MB
   BASE_URL: process.env.BASE_URL || 'http://localhost:5000',
   NODE_ENV: process.env.NODE_ENV || 'development',
   EMAIL_USER: process.env.EMAIL_USER || '',

@@ -89,3 +89,14 @@ frontend/tool/
 *.tmp
 *.bak
 
+# Tesseract OCR Trained Data (large binary files — download separately at deploy time)
+# eng.traineddata (~5 MB) and tam.traineddata (~3.2 MB) must be downloaded from
+# https://github.com/tesseract-ocr/tessdata during server setup.
+backend/*.traineddata
+*.traineddata
+
+# Backend test files (local regression & pipeline tests — not needed in production)
+backend/test/pm0011_regression.test.js
+backend/test/tamil_pipeline_layers.test.js
+backend/test/upload_and_extraction_pipeline.test.js
+

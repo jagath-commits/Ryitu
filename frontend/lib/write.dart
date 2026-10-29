@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io' show Platform, File;
 import 'package:dmk_project/home.dart';
 import 'package:dmk_project/api_config.dart';
@@ -26,9 +26,9 @@ class PageBlock {
   Offset? imagePosition;
   String? previousText;
   bool isHeadline;
-  int? fontColor; // 🔥 BLOCK COLOR
-  double? fontSize; // 🔥 BLOCK FONT SIZE
-  String? fontFamily; // 🔥 BLOCK FONT FAMILY
+  int? fontColor; // ðŸ”¥ BLOCK COLOR
+  double? fontSize; // ðŸ”¥ BLOCK FONT SIZE
+  String? fontFamily; // ðŸ”¥ BLOCK FONT FAMILY
   double? lineSpacing;
   double? letterSpacing;
   TextAlign? textAlign;
@@ -115,52 +115,52 @@ class PageData {
     this.lineSpacing = 1.4,
     this.letterSpacing = 0.0,
     this.pageMargin = 50.0,
-    this.textAlign = TextAlign.justify,
+    this.textAlign = TextAlign.start,
   }) : blocks = [PageBlock.text("")];
 }
 
 const _kValidSingleSyllableWords = {
-  'தீ', 'பூ', 'கை', 'பை', 'வா', 'போ', 'தா', 'நீ', 'மை',
-  'ஆ', 'ஈ', 'ஏ', 'ஐ', 'ஓ',
+  'à®¤à¯€', 'à®ªà¯‚', 'à®•à¯ˆ', 'à®ªà¯ˆ', 'à®µà®¾', 'à®ªà¯‹', 'à®¤à®¾', 'à®¨à¯€', 'à®®à¯ˆ',
+  'à®†', 'à®ˆ', 'à®', 'à®', 'à®“',
   // Common valid single-syllable CVC words ending in pulli
-  'தென்', 'கண்', 'மண்', 'விண்', 'பால்', 'கால்', 'வால்', 'நாள்',
-  'வேல்', 'சொல்', 'வில்', 'கல்', 'புல்', 'பல்', 'முள்', 'நூல்',
-  'பொன்', 'மான்', 'மீன்', 'தேன்', 'வான்', 'நான்', 'தான்', 'ஏன்',
-  'முன்', 'பின்', 'மின்', 'நெல்', 'பார்', 'ஊர்', 'நீர்',
-  'நேர்', 'வேர்', 'யார்', 'கார்', 'போர்', 'தார்', 'சீர்', 'நார்'
+  'à®¤à¯†à®©à¯', 'à®•à®£à¯', 'à®®à®£à¯', 'à®µà®¿à®£à¯', 'à®ªà®¾à®²à¯', 'à®•à®¾à®²à¯', 'à®µà®¾à®²à¯', 'à®¨à®¾à®³à¯',
+  'à®µà¯‡à®²à¯', 'à®šà¯Šà®²à¯', 'à®µà®¿à®²à¯', 'à®•à®²à¯', 'à®ªà¯à®²à¯', 'à®ªà®²à¯', 'à®®à¯à®³à¯', 'à®¨à¯‚à®²à¯',
+  'à®ªà¯Šà®©à¯', 'à®®à®¾à®©à¯', 'à®®à¯€à®©à¯', 'à®¤à¯‡à®©à¯', 'à®µà®¾à®©à¯', 'à®¨à®¾à®©à¯', 'à®¤à®¾à®©à¯', 'à®à®©à¯',
+  'à®®à¯à®©à¯', 'à®ªà®¿à®©à¯', 'à®®à®¿à®©à¯', 'à®¨à¯†à®²à¯', 'à®ªà®¾à®°à¯', 'à®Šà®°à¯', 'à®¨à¯€à®°à¯',
+  'à®¨à¯‡à®°à¯', 'à®µà¯‡à®°à¯', 'à®¯à®¾à®°à¯', 'à®•à®¾à®°à¯', 'à®ªà¯‹à®°à¯', 'à®¤à®¾à®°à¯', 'à®šà¯€à®°à¯', 'à®¨à®¾à®°à¯'
 };
 
 const _kBaminiConsonantsVirama = {
-  'f;': 'க்', 'q;': 'ங்', 'r;': 'ச்', 'Q;': 'ஞ்', 'l;': 'ட்', 'z;': 'ண்',
-  'j;': 'த்', 'e;': 'ந்', 'g;': 'ப்', 'k;': 'ம்', 'a;': 'ய்', 'u;': 'ர்',
-  'y;': 'ல்', 't;': 'வ்', 'o;': 'ழ்', 's;': 'ள்', 'w;': 'ற்', 'd;': 'ன்',
-  'c;': 'ஜ்', 'S;': 'ஷ்', 'n\\;': 'ஸ்', 'H;': 'ழ்', 'b;': 'க்ஷ்'
+  'f;': 'à®•à¯', 'q;': 'à®™à¯', 'r;': 'à®šà¯', 'Q;': 'à®žà¯', 'l;': 'à®Ÿà¯', 'z;': 'à®£à¯',
+  'j;': 'à®¤à¯', 'e;': 'à®¨à¯', 'g;': 'à®ªà¯', 'k;': 'à®®à¯', 'a;': 'à®¯à¯', 'u;': 'à®°à¯',
+  'y;': 'à®²à¯', 't;': 'à®µà¯', 'o;': 'à®´à¯', 's;': 'à®³à¯', 'w;': 'à®±à¯', 'd;': 'à®©à¯',
+  'c;': 'à®œà¯', 'S;': 'à®·à¯', 'n\\;': 'à®¸à¯', 'H;': 'à®´à¯', 'b;': 'à®•à¯à®·à¯'
 };
 
 const _kBaminiSpecial = {
-  'thœj;Jf;fs;': 'வாழ்த்துகள்',
-  'thœj;J': 'வாழ்த்து',
-  'fs;': 'கள்',
-  'F': 'கு', '\$': 'கூ', 'R': 'சு', '#': 'சூ', 'L': 'டு', '^': 'டூ',
-  'Z': 'ணு', '&': 'ணூ', 'J': 'து', 'J}': 'தூ', 'E': 'நு', 'E}': 'நூ',
-  'G': 'பு', 'G+': 'பூ', 'K': 'மு', 'K}': 'மூ', 'A': 'யு', 'A+': 'யூ',
-  'U': 'ரு', 'U+': 'ரூ', 'Y': 'லு', 'Y+': 'லூ', 'T': 'வு', 'T+': 'வூ',
-  'O': 'ழு', 'O}': 'ழூ', 'S': 'ளு', 'S}': 'ளூ', 'W': 'று', 'W+': 'றூ',
-  'D': 'னு', 'D}': 'னூ',
-  'jp': 'தி', 'jP': 'தீ', 'tp': 'வி', 'tP': 'வீ', 'rp': 'சி', 'rP': 'சீ',
-  'fp': 'கி', 'fP': 'கீ', 'kp': 'மி', 'kP': 'மீ', 'yp': 'லி', 'yP': 'லீ',
-  'sp': 'ளி', 'sP': 'ளீ', 'op': 'ழி', 'oP': 'ழீ', 'up': 'ரி', 'uP': 'ரீ',
-  'ep': 'நி', 'nP': 'நீ', 'gp': 'பி', 'gP': 'பீ', 'dp': 'னி', 'dP': 'னீ',
-  'wp': 'றி', 'wP': 'றீ', 'zp': 'ணி', 'zP': 'ணீ', 'lp': 'டி', 'lP': 'டீ',
-  'm': 'அ', 'M': 'ஆ', ',</': 'இ', '<': 'ஈ', 'c': 'உ', 'C': 'ஊ',
-  'v': 'எ', 'V': 'ஏ', 'I': 'ஐ', 'x': 'ஒ', 'X': 'ஓ', 'xs': 'ஔ'
+  'thÅ“j;Jf;fs;': 'à®µà®¾à®´à¯à®¤à¯à®¤à¯à®•à®³à¯',
+  'thÅ“j;J': 'à®µà®¾à®´à¯à®¤à¯à®¤à¯',
+  'fs;': 'à®•à®³à¯',
+  'F': 'à®•à¯', '\$': 'à®•à¯‚', 'R': 'à®šà¯', '#': 'à®šà¯‚', 'L': 'à®Ÿà¯', '^': 'à®Ÿà¯‚',
+  'Z': 'à®£à¯', '&': 'à®£à¯‚', 'J': 'à®¤à¯', 'J}': 'à®¤à¯‚', 'E': 'à®¨à¯', 'E}': 'à®¨à¯‚',
+  'G': 'à®ªà¯', 'G+': 'à®ªà¯‚', 'K': 'à®®à¯', 'K}': 'à®®à¯‚', 'A': 'à®¯à¯', 'A+': 'à®¯à¯‚',
+  'U': 'à®°à¯', 'U+': 'à®°à¯‚', 'Y': 'à®²à¯', 'Y+': 'à®²à¯‚', 'T': 'à®µà¯', 'T+': 'à®µà¯‚',
+  'O': 'à®´à¯', 'O}': 'à®´à¯‚', 'S': 'à®³à¯', 'S}': 'à®³à¯‚', 'W': 'à®±à¯', 'W+': 'à®±à¯‚',
+  'D': 'à®©à¯', 'D}': 'à®©à¯‚',
+  'jp': 'à®¤à®¿', 'jP': 'à®¤à¯€', 'tp': 'à®µà®¿', 'tP': 'à®µà¯€', 'rp': 'à®šà®¿', 'rP': 'à®šà¯€',
+  'fp': 'à®•à®¿', 'fP': 'à®•à¯€', 'kp': 'à®®à®¿', 'kP': 'à®®à¯€', 'yp': 'à®²à®¿', 'yP': 'à®²à¯€',
+  'sp': 'à®³à®¿', 'sP': 'à®³à¯€', 'op': 'à®´à®¿', 'oP': 'à®´à¯€', 'up': 'à®°à®¿', 'uP': 'à®°à¯€',
+  'ep': 'à®¨à®¿', 'nP': 'à®¨à¯€', 'gp': 'à®ªà®¿', 'gP': 'à®ªà¯€', 'dp': 'à®©à®¿', 'dP': 'à®©à¯€',
+  'wp': 'à®±à®¿', 'wP': 'à®±à¯€', 'zp': 'à®£à®¿', 'zP': 'à®£à¯€', 'lp': 'à®Ÿà®¿', 'lP': 'à®Ÿà¯€',
+  'm': 'à®…', 'M': 'à®†', ',</': 'à®‡', '<': 'à®ˆ', 'c': 'à®‰', 'C': 'à®Š',
+  'v': 'à®Ž', 'V': 'à®', 'I': 'à®', 'x': 'à®’', 'X': 'à®“', 'xs': 'à®”'
 };
 
 const _kBaminiBasic = {
-  'f': 'க', 'q': 'ங', 'r': 'ச', 'Q': 'ஞ', 'l': 'ட', 'z': 'ண',
-  'j': 'த', 'e': 'ந', 'g': 'ப', 'k': 'ம', 'a': 'ய', 'u': 'ர',
-  'y': 'ல', 't': 'வ', 'o': 'ழ', 's': 'ள', 'w': 'ற', 'd': 'ன',
-  'c': 'ஜ', 'S': 'ஷ', 'n\\': 'ஸ', 'h': 'ா'
+  'f': 'à®•', 'q': 'à®™', 'r': 'à®š', 'Q': 'à®ž', 'l': 'à®Ÿ', 'z': 'à®£',
+  'j': 'à®¤', 'e': 'à®¨', 'g': 'à®ª', 'k': 'à®®', 'a': 'à®¯', 'u': 'à®°',
+  'y': 'à®²', 't': 'à®µ', 'o': 'à®´', 's': 'à®³', 'w': 'à®±', 'd': 'à®©',
+  'c': 'à®œ', 'S': 'à®·', 'n\\': 'à®¸', 'h': 'à®¾'
 };
 
 bool isTamilDocumentOrPassage(String text) {
@@ -175,14 +175,14 @@ bool isTamilDocumentOrPassage(String text) {
   }
 
   final baminiMatches = RegExp(r'[fqrQljegkaytospwdcSH];|fs;').allMatches(text).length;
-  if (baminiMatches >= 3 && (text.contains('tzf;fk;') || text.contains('thœj;Jf;fs;') || engCount < 30 || baminiMatches > engCount * 0.1)) {
+  if (baminiMatches >= 3 && (text.contains('tzf;fk;') || text.contains('thÅ“j;Jf;fs;') || engCount < 30 || baminiMatches > engCount * 0.1)) {
     return true;
   }
 
-  if (text.contains('æÒΩநீசு') || text.contains('ßæ∫ı') || text.contains('æÒΩ£˜') || text.contains('taNNIr tEcam')) {
+  if (text.contains('Ã¦Ã’Î©à®¨à¯€à®šà¯') || text.contains('ÃŸÃ¦âˆ«Ä±') || text.contains('Ã¦Ã’Î©Â£Ëœ') || text.contains('taNNIr tEcam')) {
     return true;
   }
-  final macRomanDistinctive = RegExp(r'[æÒΩß∫Ú¡ÛÃÕ‹Ô‡›⁄˙˛ÌØÓÉ˚ıˆ˝]').allMatches(text).length;
+  final macRomanDistinctive = RegExp(r'[Ã¦Ã’Î©ÃŸâˆ«ÃšÂ¡Ã›ÃƒÃ•â€¹Ã”â€¡â€ºâ„Ë™Ë›ÃŒÃ˜Ã“Ã‰ËšÄ±Ë†Ë]').allMatches(text).length;
   if (macRomanDistinctive >= 3 && (tamilCount > 0 || engCount < 30 || macRomanDistinctive > engCount * 0.15)) {
     return true;
   }
@@ -228,7 +228,7 @@ String decodeLegacyTamil(String text) {
   if (text.isEmpty) return text;
   if (!isTamilDocumentOrPassage(text)) return text;
 
-  final hasLegacyGlyphs = RegExp(r'[Ƭ«¬¢²©§¸•˜ªº¶´£\u0192\u201E\u2026\u2020\u20AC\u201A\u0152\u0153\u017E\u201D\u017D\u2018\u2019\u201C\u01AC\u01AB\u02DC\x7F\u0080-\u009F]').hasMatch(text);
+  final hasLegacyGlyphs = RegExp(r'[Æ¬Â«Â¬Â¢Â²Â©Â§Â¸â€¢ËœÂªÂºÂ¶Â´Â£\u0192\u201E\u2026\u2020\u20AC\u201A\u0152\u0153\u017E\u201D\u017D\u2018\u2019\u201C\u01AC\u01AB\u02DC\x7F\u0080-\u009F]').hasMatch(text);
   final hasTamilWithAscii = RegExp(r'([\u0B80-\u0BFF]\s*[{}\|~tuvxyz])|([{}|~tuvxyz]\s*[\u0B80-\u0BFF])').hasMatch(text);
 
   if (!hasLegacyGlyphs && !hasTamilWithAscii) {
@@ -238,115 +238,117 @@ String decodeLegacyTamil(String text) {
   String result = text;
 
   const cp1252Map = {
-    '\x80': 'ய்',
-    '\x82': 'ற்',
-    '\x83': 'ல்',
-    '\x84': 'ள்',
-    '\x85': 'ழ்',
-    '\x86': 'வ்',
-    '\x8C': 'டி',
+    '\x80': 'à®¯à¯',
+    '\x82': 'à®±à¯',
+    '\x83': 'à®²à¯',
+    '\x84': 'à®³à¯',
+    '\x85': 'à®´à¯',
+    '\x86': 'à®µà¯',
+    '\x8C': 'à®Ÿà®¿',
     '\x8E': '\u0BBF',
     '\x8F': '\u0BBF',
     '\x91': '\u0BC0',
     '\x92': '\u0BC0',
     '\x93': '\u0BC0',
-    '\x94': 'கு',
-    '\x95': 'கூ',
-    '\x98': 'சு',
-    '\x9C': 'டி',
-    '\x9E': 'டு',
+    '\x94': 'à®•à¯',
+    '\x95': 'à®•à¯‚',
+    '\x98': 'à®šà¯',
+    '\x9C': 'à®Ÿà®¿',
+    '\x9E': 'à®Ÿà¯',
   };
 
   cp1252Map.forEach((k, v) {
     result = result.replaceAll(k, v);
   });
 
-  const specialMap = {
-    '\u01AC': 'ரி',  // Ƭ
-    '\u00AF': 'ரு',  // ¯
-    '\u00AB': 'மு',  // «
-    '\u00AC': 'மூ',  // ¬
-    '\u00A2': 'து',  // ¢
-    '\u00B2': 'று',  // ²
-    '\u00A9': 'பு',  // ©
-    '\u00A7': 'ன்',  // §
-    '\u00B8': 'ளி',  // ¸
-    '\u2022': 'கூ',  // •
-    '\u02DC': 'சு',  // ˜
-    '\u00AA': 'பூ',  // ª
-    '\u00BA': 'வு',  // º
-    '\u00B6': 'ளு',  // ¶
-    '\u00B4': 'லு',  // ´
-    '\u00A3': 'நீ',  // £
-    '\u0192': 'ல்',  // ƒ
-    '\u201E': 'ள்',  // „
-    '\u2026': 'ழ்',  // …
-    '\u2020': 'வ்',  // †
-    '\u20AC': 'ய்',  // €
-    '\u201A': 'ற்',  // ‚
-    '\u0152': 'டி',  // Œ
-    '\u0153': 'டி',  // œ
-    '\u017E': 'டு',  // ž
-    '\u201D': 'கு',  // ”
-    '\u017D': '\u0BBF', // Ž -> ி
-    '\u2018': '\u0BC0', // ‘ -> ீ
-    '\u2019': '\u0BC0', // ’ -> ீ
-    '\u201C': '\u0BC0', // “ -> ீ
-    '\u01AB': 'ர்',  // ƫ
-    '\x7F': 'ம்',
+  // Pure legacy glyphs that are never used in normal English text
+  const pureLegacyMap = {
+    '\u01AC': 'à®°à®¿',  // Æ¬
+    '\u00AF': 'à®°à¯',  // Â¯
+    '\u00AB': 'à®®à¯',  // Â«
+    '\u00AC': 'à®®à¯‚',  // Â¬
+    '\u00B8': 'à®³à®¿',  // Â¸
+    '\u00AA': 'à®ªà¯‚',  // Âª
+    '\u00BA': 'à®µà¯',  // Âº
+    '\u00B6': 'à®³à¯',  // Â¶
+    '\u0192': 'à®²à¯',  // Æ’
+    '\u201E': 'à®³à¯',  // â€ž
+    '\u201A': 'à®±à¯',  // â€š
+    '\u017D': '\u0BBF', // Å½ -> à®¿
+    '\u01AB': 'à®°à¯',  // Æ«
+    '\x7F': 'à®®à¯',
   };
 
-  result = result.replaceAll(RegExp(r'கள[ \t]*[\u0192\u201E\x83\x84]'), 'கள்');
-
-  specialMap.forEach((k, v) {
+  pureLegacyMap.forEach((k, v) {
     result = result.replaceAll(k, v);
   });
 
+  // ASCII markers: only replace if adjacent to a Tamil character or legacy glyph
   const asciiMap = {
-    '}': 'ன்',
-    '{': 'த்',
-    '|': 'ந்',
-    '~': 'ப்',
-    't': 'க்',
-    'u': 'ங்',
-    'v': 'ச்',
-    'x': 'ஞ்',
-    'y': 'ட்',
-    'z': 'ண்',
+    '}': 'à®©à¯',
+    '{': 'à®¤à¯',
+    '|': 'à®¨à¯',
+    '~': 'à®ªà¯',
+    't': 'à®•à¯',
+    'u': 'à®™à¯',
+    'v': 'à®šà¯',
+    'x': 'à®žà¯',
+    'y': 'à®Ÿà¯',
+    'z': 'à®£à¯',
   };
 
+  const tamilOrLegacy = r'[\u0B80-\u0BFF\u0080-\u024F]';
   if (hasTamilWithAscii) {
-    result = result.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([{}|~tuvxyz])'), (m) => '${m[1]}${m[2]}');
+    result = result.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF\u0080-\u024F])[ \t]+([{}|~tuvxyz])'), (m) => '${m[1]}${m[2]}');
     asciiMap.forEach((k, v) {
-      result = result.replaceAll(k, v);
+      if ('tuvxyz'.contains(k)) {
+        result = result.replaceAllMapped(RegExp('(?<=$tamilOrLegacy)$k|$k(?=$tamilOrLegacy)'), (m) => v);
+      } else {
+        final esc = RegExp.escape(k);
+        result = result.replaceAllMapped(RegExp('(?<=$tamilOrLegacy)$esc|$esc(?=$tamilOrLegacy)'), (m) => v);
+      }
     });
   }
 
+  // Ambiguous symbols: ONLY replace if attached to a Tamil or legacy glyph (not in standalone English)
+  const punctuationLegacyMap = {
+    '\u00A9': 'à®ªà¯',  // Â©
+    '\u00A7': 'à®©à¯',  // Â§
+    '\u00A2': 'à®¤à¯',  // Â¢
+    '\u00B2': 'à®±à¯',  // Â²
+    '\u00B4': 'à®²à¯',  // Â´
+    '\u00A3': 'à®¨à¯€',  // Â£
+    '\u2020': 'à®µà¯',  // â€ 
+    '\u20AC': 'à®¯à¯',  // â‚¬
+    '\u0152': 'à®Ÿà®¿',  // Å’
+    '\u0153': 'à®Ÿà®¿',  // Å“
+    '\u017E': 'à®Ÿà¯',  // Å¾
+    '\u201D': 'à®•à¯',  // â€
+    '\u02DC': 'à®šà¯',  // Ëœ
+  };
+
+  punctuationLegacyMap.forEach((k, v) {
+    if (!result.contains(k)) return;
+    if (k == '\u201D') {
+      result = result.replaceAllMapped(RegExp(r'(?<=[\u0B95-\u0BB9\u0BCD])\u201D(?=[\u0B80-\u0BFF\s\x7F]|$)'), (m) => v);
+      result = result.replaceAllMapped(RegExp(r'(?<=^|[\s\p{P}])\u201D(?=[\u0B80-\u0BFF])', unicode: true), (m) => v);
+    } else {
+      final esc = RegExp.escape(k);
+      result = result.replaceAllMapped(RegExp('(?<=$tamilOrLegacy)$esc|$esc(?=$tamilOrLegacy)'), (m) => v);
+    }
+  });
+
   // Reconnect space between consonant and vowel sign/virama
   result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])[ \t]+([\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}');
+  result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])[ \t]*[â€œ\u201C]'), (m) => '${m[1]}\u0BC0');
 
-  // Dialogue Quotes
-  result = result.replaceAllMapped(
-    RegExp(r'([.?!,:])(?:[குீ”\x22\x27]|[\u0BC0\u0BC1])+(?=[\s\n]|$)'),
-    (m) => '${m[1]}”',
-  );
-  result = result.replaceAllMapped(
-    RegExp(r'([\u0B95-\u0BB9]ம்|[\u0B95-\u0BB9]து|[\u0B95-\u0BB9]ான்|[\u0B95-\u0BB9]ாள்|[\u0B95-\u0BB9]ார்|[\u0B95-\u0BB9]ேன்)கு[ \t]+(?=என்று|என|என்ற|சொன்ன|கேட்ட|என்றார்)'),
-    (m) => '${m[1]}” ',
-  );
-  result = result.replaceAllMapped(
-    RegExp(r'(^|[\s(\[])[ீ“\x22\x27]+(?=[\u0B85-\u0B94\u0B95-\u0BB9])'),
-    (m) => '${m[1]}“',
-  );
-  result = result.replaceAll('‘‘', '“');
-
-  // Closing single quote encoded as ீ immediately after virama consonant
-  result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9]\u0BCD)\u0BC0(?=[\s,.;:!?]|$)'), (m) => '${m[1]}’');
-  result = result.replaceAll('`', '‘');
-
-  // Reconnect virama + vowel signs (e.g. க் + ு -> கு)
+  // Reconnect virama + vowel signs (e.g. à®•à¯ + à¯ -> à®•à¯)
   result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BCD\u0BC1'), (m) => '${m[1]}\u0BC1');
   result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BCD\u0BC2'), (m) => '${m[1]}\u0BC2');
+
+  // Closing single quote encoded as à¯€ immediately after virama consonant
+  result = result.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9]\u0BCD)\u0BC0(?=[\s,.;:!?]|$)'), (m) => '${m[1]}â€™');
+  result = result.replaceAll('`', 'â€˜');
 
   return result;
 }
@@ -355,51 +357,51 @@ String decodeMacTamilPDF(String text) {
   if (text.isEmpty) return text;
   if (!isTamilDocumentOrPassage(text)) return text;
 
-  final signature = RegExp(r'[æÒΩß∫Ú¡ÛÃÕ‹Ô‡›⁄˙˛ÌØÓÉ˚ıˆ˝]');
+  final signature = RegExp(r'[Ã¦Ã’Î©ÃŸâˆ«ÃšÂ¡Ã›ÃƒÃ•â€¹Ã”â€¡â€ºâ„Ë™Ë›ÃŒÃ˜Ã“Ã‰ËšÄ±Ë†Ë]');
   final matches = signature.allMatches(text);
-  if (matches.length < 3 && !text.contains('æÒΩநீசு') && !text.contains('ßæ∫ı') && !text.contains('taNNIr tEcam')) {
+  if (matches.length < 3 && !text.contains('Ã¦Ã’Î©à®¨à¯€à®šà¯') && !text.contains('ÃŸÃ¦âˆ«Ä±') && !text.contains('taNNIr tEcam')) {
     return text;
   }
 
   String s = text;
 
   const exactMap = [
-    ['æÒΩநீசு ßæ∫ı', 'தண்ணீர் தேசம்'],
-    ['æÒΩநீசு', 'தண்ணீர்'],
-    ['ßæ∫ı', 'தேசம்'],
-    ['∏≈துபூசு ®≈√குÚ–', 'கவிஞர் வைரமுத்து'],
-    ['∏≈துபூசு', 'கவிஞர்'],
-    ['®≈√குÚ–', 'வைரமுத்து'],
-    ['¡ீÚ–≈¡®ழ்.', 'மருத்துவமனை.'],
-    ['¡ீÚ–≈¡®ழ்', 'மருத்துவமனை'],
-    ['Ãவுரு Ã®வுீı ¡ீÛ–≈°∫ı.', 'குடல் குடையும் மருந்துவாசம்.'],
-    ['Ãவுரு', 'குடல்'],
-    ['Ã®வுீı', 'குடையும்'],
-    ['¡ீÛ–≈°∫ı.', 'மருந்துவாசம்.'],
-    ['¡ீÛ–≈°∫ı', 'மருந்துவாசம்'],
-    ['–®வுÚ–®≈Úæ ß∫°∏ı.', 'துடைத்துவைத்த சோகம்.'],
-    ['–®வுÚ–®≈Úæ', 'துடைத்துவைத்த'],
-    ['ß∫°∏ı.', 'சோகம்.'],
-    ['ß∫°∏ı', 'சோகம்'],
-    ['ளு≈˚®முளு≈˚®முமூ°ˆ', 'வெள்ளைவெள்ளையாய்'],
-    ['லு≈∫√Ì∏˚. ¨Ì∏துல்Úæதுரு', 'அவசரங்கள். ஆங்கிலத்தில்'],
-    ['லு≈∫√Ì∏˚.', 'அவசரங்கள்.'],
-    ['லு≈∫√Ì∏˚', 'அவசரங்கள்'],
-    ['¨Ì∏துல்Úæதுரு', 'ஆங்கிலத்தில்'],
-    ['லு∏◊ı லு∆Ã¡மூதுரு∏˚.', 'அகவும் அழகுமயில்கள்.'],
-    ['லு∏◊ı', 'அகவும்'],
-    ['லு∆Ã¡மூதுரு∏˚.', 'அழகுமயில்கள்.'],
-    ['லு∆Ã¡மூதுரு∏˚', 'அழகுமயில்கள்'],
-    ['லு®» ±Ò 303.', 'அறை எண் 303.'],
-    ['லு®»', 'அறை'],
-    ['±Ò', 'எண்'],
-    ['Õ[ \t]+æ°', 'சுடிதா'],
-    ['–[ \t]+–[ \t]*ÏÃı', 'துடிதுடிக்கும்'],
-    ['ளி»து', 'ற்றி'],
-    ['மூளி', 'யற்'],
-    ['–Òடி', 'துண்டு'],
-    ['®¿மூ', 'பைய '],
-    ['—®√', 'நுரை']
+    ['Ã¦Ã’Î©à®¨à¯€à®šà¯ ÃŸÃ¦âˆ«Ä±', 'à®¤à®£à¯à®£à¯€à®°à¯ à®¤à¯‡à®šà®®à¯'],
+    ['Ã¦Ã’Î©à®¨à¯€à®šà¯', 'à®¤à®£à¯à®£à¯€à®°à¯'],
+    ['ÃŸÃ¦âˆ«Ä±', 'à®¤à¯‡à®šà®®à¯'],
+    ['âˆâ‰ˆà®¤à¯à®ªà¯‚à®šà¯ Â®â‰ˆâˆšà®•à¯Ãšâ€“', 'à®•à®µà®¿à®žà®°à¯ à®µà¯ˆà®°à®®à¯à®¤à¯à®¤à¯'],
+    ['âˆâ‰ˆà®¤à¯à®ªà¯‚à®šà¯', 'à®•à®µà®¿à®žà®°à¯'],
+    ['Â®â‰ˆâˆšà®•à¯Ãšâ€“', 'à®µà¯ˆà®°à®®à¯à®¤à¯à®¤à¯'],
+    ['Â¡à¯€Ãšâ€“â‰ˆÂ¡Â®à®´à¯.', 'à®®à®°à¯à®¤à¯à®¤à¯à®µà®®à®©à¯ˆ.'],
+    ['Â¡à¯€Ãšâ€“â‰ˆÂ¡Â®à®´à¯', 'à®®à®°à¯à®¤à¯à®¤à¯à®µà®®à®©à¯ˆ'],
+    ['Ãƒà®µà¯à®°à¯ ÃƒÂ®à®µà¯à¯€Ä± Â¡à¯€Ã›â€“â‰ˆÂ°âˆ«Ä±.', 'à®•à¯à®Ÿà®²à¯ à®•à¯à®Ÿà¯ˆà®¯à¯à®®à¯ à®®à®°à¯à®¨à¯à®¤à¯à®µà®¾à®šà®®à¯.'],
+    ['Ãƒà®µà¯à®°à¯', 'à®•à¯à®Ÿà®²à¯'],
+    ['ÃƒÂ®à®µà¯à¯€Ä±', 'à®•à¯à®Ÿà¯ˆà®¯à¯à®®à¯'],
+    ['Â¡à¯€Ã›â€“â‰ˆÂ°âˆ«Ä±.', 'à®®à®°à¯à®¨à¯à®¤à¯à®µà®¾à®šà®®à¯.'],
+    ['Â¡à¯€Ã›â€“â‰ˆÂ°âˆ«Ä±', 'à®®à®°à¯à®¨à¯à®¤à¯à®µà®¾à®šà®®à¯'],
+    ['â€“Â®à®µà¯Ãšâ€“Â®â‰ˆÃšÃ¦ ÃŸâˆ«Â°âˆÄ±.', 'à®¤à¯à®Ÿà¯ˆà®¤à¯à®¤à¯à®µà¯ˆà®¤à¯à®¤ à®šà¯‹à®•à®®à¯.'],
+    ['â€“Â®à®µà¯Ãšâ€“Â®â‰ˆÃšÃ¦', 'à®¤à¯à®Ÿà¯ˆà®¤à¯à®¤à¯à®µà¯ˆà®¤à¯à®¤'],
+    ['ÃŸâˆ«Â°âˆÄ±.', 'à®šà¯‹à®•à®®à¯.'],
+    ['ÃŸâˆ«Â°âˆÄ±', 'à®šà¯‹à®•à®®à¯'],
+    ['à®³à¯â‰ˆËšÂ®à®®à¯à®³à¯â‰ˆËšÂ®à®®à¯à®®à¯‚Â°Ë†', 'à®µà¯†à®³à¯à®³à¯ˆà®µà¯†à®³à¯à®³à¯ˆà®¯à®¾à®¯à¯'],
+    ['à®²à¯â‰ˆâˆ«âˆšÃŒâˆËš. Â¨ÃŒâˆà®¤à¯à®²à¯ÃšÃ¦à®¤à¯à®°à¯', 'à®…à®µà®šà®°à®™à¯à®•à®³à¯. à®†à®™à¯à®•à®¿à®²à®¤à¯à®¤à®¿à®²à¯'],
+    ['à®²à¯â‰ˆâˆ«âˆšÃŒâˆËš.', 'à®…à®µà®šà®°à®™à¯à®•à®³à¯.'],
+    ['à®²à¯â‰ˆâˆ«âˆšÃŒâˆËš', 'à®…à®µà®šà®°à®™à¯à®•à®³à¯'],
+    ['Â¨ÃŒâˆà®¤à¯à®²à¯ÃšÃ¦à®¤à¯à®°à¯', 'à®†à®™à¯à®•à®¿à®²à®¤à¯à®¤à®¿à®²à¯'],
+    ['à®²à¯âˆâ—ŠÄ± à®²à¯âˆ†ÃƒÂ¡à®®à¯‚à®¤à¯à®°à¯âˆËš.', 'à®…à®•à®µà¯à®®à¯ à®…à®´à®•à¯à®®à®¯à®¿à®²à¯à®•à®³à¯.'],
+    ['à®²à¯âˆâ—ŠÄ±', 'à®…à®•à®µà¯à®®à¯'],
+    ['à®²à¯âˆ†ÃƒÂ¡à®®à¯‚à®¤à¯à®°à¯âˆËš.', 'à®…à®´à®•à¯à®®à®¯à®¿à®²à¯à®•à®³à¯.'],
+    ['à®²à¯âˆ†ÃƒÂ¡à®®à¯‚à®¤à¯à®°à¯âˆËš', 'à®…à®´à®•à¯à®®à®¯à®¿à®²à¯à®•à®³à¯'],
+    ['à®²à¯Â®Â» Â±Ã’ 303.', 'à®…à®±à¯ˆ à®Žà®£à¯ 303.'],
+    ['à®²à¯Â®Â»', 'à®…à®±à¯ˆ'],
+    ['Â±Ã’', 'à®Žà®£à¯'],
+    ['Ã•[ \t]+Ã¦Â°', 'à®šà¯à®Ÿà®¿à®¤à®¾'],
+    ['â€“[ \t]+â€“[ \t]*ÃÃƒÄ±', 'à®¤à¯à®Ÿà®¿à®¤à¯à®Ÿà®¿à®•à¯à®•à¯à®®à¯'],
+    ['à®³à®¿Â»à®¤à¯', 'à®±à¯à®±à®¿'],
+    ['à®®à¯‚à®³à®¿', 'à®¯à®±à¯'],
+    ['â€“Ã’à®Ÿà®¿', 'à®¤à¯à®£à¯à®Ÿà¯'],
+    ['Â®Â¿à®®à¯‚', 'à®ªà¯ˆà®¯ '],
+    ['â€”Â®âˆš', 'à®¨à¯à®°à¯ˆ']
   ];
 
   for (final pair in exactMap) {
@@ -417,32 +419,32 @@ String decodeMacTamilPDF(String text) {
     }
 
     String l = line;
-    const conRegex = r'(∏|∫||வு|æ|ø|¿|¡|மூ|√|ல்|ரு|≈|∆|மு|»|É)';
+    const conRegex = r'(âˆ|âˆ«|ï£¿|à®µà¯|Ã¦|Ã¸|Â¿|Â¡|à®®à¯‚|âˆš|à®²à¯|à®°à¯|â‰ˆ|âˆ†|à®®à¯|Â»|Ã‰)';
 
-    l = l.replaceAllMapped(RegExp('ளு$conRegex°'), (m) => '${m[1]}ொ');
-    l = l.replaceAllMapped(RegExp('ß$conRegex°'), (m) => '${m[1]}ோ');
-    l = l.replaceAllMapped(RegExp('ளு$conRegex'), (m) => '${m[1]}ெ');
-    l = l.replaceAllMapped(RegExp('ß$conRegex'), (m) => '${m[1]}ே');
-    l = l.replaceAllMapped(RegExp('®$conRegex'), (m) => '${m[1]}ை');
+    l = l.replaceAllMapped(RegExp('à®³à¯$conRegexÂ°'), (m) => '${m[1]}à¯Š');
+    l = l.replaceAllMapped(RegExp('ÃŸ$conRegexÂ°'), (m) => '${m[1]}à¯‹');
+    l = l.replaceAllMapped(RegExp('à®³à¯$conRegex'), (m) => '${m[1]}à¯†');
+    l = l.replaceAllMapped(RegExp('ÃŸ$conRegex'), (m) => '${m[1]}à¯‡');
+    l = l.replaceAllMapped(RegExp('Â®$conRegex'), (m) => '${m[1]}à¯ˆ');
 
     const multiMap = {
-      'லு': 'அ', '¨': 'ஆ', '˛': 'இ', 'Ø': 'உ', 'μ': 'ஓ', '±': 'எ',
-      '∏': 'க', 'Ï': 'க்', 'Ì': 'ங்', '∫': 'ச', 'Ó': 'ச்', 'பூ': 'ஞ', 'Ô': 'ஞ்',
-      '': 'ட்', 'வு': 'ட', 'Ò': 'ண்', 'Ω': 'ண', 'æ': 'த', 'Ú': 'த்', 'ø': 'ந',
-      'Û': 'ந்', '¿': 'ப', 'Ù': 'ப்', '¡': 'ம', 'ı': 'ம்', 'மூ': 'ய', 'ˆ': 'ய்',
-      '√': 'ர', 'சு': 'ர்', 'ல்': 'ல', 'ரு': 'ல்', '≈': 'வ', '◊': 'வு', '∆': 'ழ',
-      'மு': 'ள', '˚': 'ள்', '»': 'ற', 'ளி': 'ற்', 'ழ்': 'ன', '˝': 'ன்', 'É': 'ஜ',
-      'ª': 'ஶ்ரீ',
-      'Ã': 'கு', 'Õ': 'சு', '›': 'சூ', '–': 'து', '‡': 'தூ',
-      '—': 'நு', 'டி': 'டு',
-      '°': 'ா'
+      'à®²à¯': 'à®…', 'Â¨': 'à®†', 'Ë›': 'à®‡', 'Ã˜': 'à®‰', 'Î¼': 'à®“', 'Â±': 'à®Ž',
+      'âˆ': 'à®•', 'Ã': 'à®•à¯', 'ÃŒ': 'à®™à¯', 'âˆ«': 'à®š', 'Ã“': 'à®šà¯', 'à®ªà¯‚': 'à®ž', 'Ã”': 'à®žà¯',
+      'ï£¿': 'à®Ÿà¯', 'à®µà¯': 'à®Ÿ', 'Ã’': 'à®£à¯', 'Î©': 'à®£', 'Ã¦': 'à®¤', 'Ãš': 'à®¤à¯', 'Ã¸': 'à®¨',
+      'Ã›': 'à®¨à¯', 'Â¿': 'à®ª', 'Ã™': 'à®ªà¯', 'Â¡': 'à®®', 'Ä±': 'à®®à¯', 'à®®à¯‚': 'à®¯', 'Ë†': 'à®¯à¯',
+      'âˆš': 'à®°', 'à®šà¯': 'à®°à¯', 'à®²à¯': 'à®²', 'à®°à¯': 'à®²à¯', 'â‰ˆ': 'à®µ', 'â—Š': 'à®µà¯', 'âˆ†': 'à®´',
+      'à®®à¯': 'à®³', 'Ëš': 'à®³à¯', 'Â»': 'à®±', 'à®³à®¿': 'à®±à¯', 'à®´à¯': 'à®©', 'Ë': 'à®©à¯', 'Ã‰': 'à®œ',
+      'Âª': 'à®¶à¯à®°à¯€',
+      'Ãƒ': 'à®•à¯', 'Ã•': 'à®šà¯', 'â€º': 'à®šà¯‚', 'â€“': 'à®¤à¯', 'â€¡': 'à®¤à¯‚',
+      'â€”': 'à®¨à¯', 'à®Ÿà®¿': 'à®Ÿà¯',
+      'Â°': 'à®¾'
     };
 
     multiMap.forEach((k, v) {
       l = l.replaceAll(k, v);
     });
 
-    l = l.replaceAllMapped(RegExp(r'([க-ஹ])து'), (m) => '${m[1]}\u0BBF');
+    l = l.replaceAllMapped(RegExp(r'([à®•-à®¹])à®¤à¯'), (m) => '${m[1]}\u0BBF');
     return l;
   });
 
@@ -453,8 +455,8 @@ String decodeLateVolumeDtpTamil(String text) {
   if (text.isEmpty) return text;
   if (!isTamilDocumentOrPassage(text)) return text;
 
-  final dtpMatches = RegExp(r'(?:(?:^|[\s\p{P}])ன[க-ஹ]|ம[வதபள]|ம[பநசகவத]ா|ன[கசதபவ]ா)', unicode: true).allMatches(text).length;
-  final hasSpecialMarkers = text.contains('மவந்மத') || text.contains('னபண்களின்') || text.contains('பானற') || text.contains('பனனயன்') || text.contains('கைமன');
+  final dtpMatches = RegExp(r'(?:(?:^|[\s\p{P}])à®©[à®•-à®¹]|à®®[à®µà®¤à®ªà®³]|à®®[à®ªà®¨à®šà®•à®µà®¤]à®¾|à®©[à®•à®šà®¤à®ªà®µ]à®¾)', unicode: true).allMatches(text).length;
+  final hasSpecialMarkers = text.contains('à®®à®µà®¨à¯à®®à®¤') || text.contains('à®©à®ªà®£à¯à®•à®³à®¿à®©à¯') || text.contains('à®ªà®¾à®©à®±') || text.contains('à®ªà®©à®©à®¯à®©à¯') || text.contains('à®•à¯ˆà®®à®©');
 
   if (dtpMatches < 2 && !hasSpecialMarkers) {
     return text;
@@ -462,54 +464,54 @@ String decodeLateVolumeDtpTamil(String text) {
 
   String s = text;
 
-  s = s.replaceAll('™', 'சூ');
-  s = s.replaceAll('வவள்பாரி', 'வேள்பாரி');
-  s = s.replaceAll('பவங்கவேசன்', 'வெங்கடேசன்');
-  s = s.replaceAll('மசாைா', 'சோழா');
-  s = s.replaceAll('மைல்விளிம்பில்', 'மேல்விளிம்பில்');
-  s = s.replaceAll('ைறுனைாழினய', 'மறுமொழியை');
-  s = s.replaceAll('கைமன', 'மகனே');
+  s = s.replaceAll('â„¢', 'à®šà¯‚');
+  s = s.replaceAll('à®µà®µà®³à¯à®ªà®¾à®°à®¿', 'à®µà¯‡à®³à¯à®ªà®¾à®°à®¿');
+  s = s.replaceAll('à®ªà®µà®™à¯à®•à®µà¯‡à®šà®©à¯', 'à®µà¯†à®™à¯à®•à®Ÿà¯‡à®šà®©à¯');
+  s = s.replaceAll('à®®à®šà®¾à¯ˆà®¾', 'à®šà¯‹à®´à®¾');
+  s = s.replaceAll('à®®à¯ˆà®²à¯à®µà®¿à®³à®¿à®®à¯à®ªà®¿à®²à¯', 'à®®à¯‡à®²à¯à®µà®¿à®³à®¿à®®à¯à®ªà®¿à®²à¯');
+  s = s.replaceAll('à¯ˆà®±à¯à®©à¯ˆà®¾à®´à®¿à®©à®¯', 'à®®à®±à¯à®®à¯Šà®´à®¿à®¯à¯ˆ');
+  s = s.replaceAll('à®•à¯ˆà®®à®©', 'à®®à®•à®©à¯‡');
 
   // 1. Circumfixes
-  s = s.replaceAllMapped(RegExp(r'ன([க-ஹ])ா'), (m) => '${m[1]}\u0BCA');
-  s = s.replaceAllMapped(RegExp(r'ம([க-ஹ])ா'), (m) => '${m[1]}\u0BCB');
+  s = s.replaceAllMapped(RegExp(r'à®©([à®•-à®¹])à®¾'), (m) => '${m[1]}\u0BCA');
+  s = s.replaceAllMapped(RegExp(r'à®®([à®•-à®¹])à®¾'), (m) => '${m[1]}\u0BCB');
 
-  // 2. Pre-base Kombu ee for consonants that cannot follow bare 'ம'
-  s = s.replaceAllMapped(RegExp(r'ம([வதபள])'), (m) => '${m[1]}\u0BC7');
-  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])மக(?=[ட்ள])', unicode: true), (m) => '${m[1]}கே');
-  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ா-்]?)ம([யவழறத])'), (m) => '${m[1]}${m[2]}\u0BC7');
+  // 2. Pre-base Kombu ee for consonants that cannot follow bare 'à®®'
+  s = s.replaceAllMapped(RegExp(r'à®®([à®µà®¤à®ªà®³])'), (m) => '${m[1]}\u0BC7');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])à®®à®•(?=[à®Ÿà¯à®³])', unicode: true), (m) => '${m[1]}à®•à¯‡');
+  s = s.replaceAllMapped(RegExp(r'([à®•-à®¹][à®¾-à¯]?)à®®([à®¯à®µà®´à®±à®¤])'), (m) => '${m[1]}${m[2]}\u0BC7');
 
-  // 3. ன as Kombu
-  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])னப', unicode: true), (m) => '${m[1]}பெ');
-  s = s.replaceAllMapped(RegExp(r'([அ-ஹா-்])னப'), (m) => '${m[1]}பெ');
-  s = s.replaceAll('னப', 'பெ');
+  // 3. à®© as Kombu
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])à®©à®ª', unicode: true), (m) => '${m[1]}à®ªà¯†');
+  s = s.replaceAllMapped(RegExp(r'([à®…-à®¹à®¾-à¯])à®©à®ª'), (m) => '${m[1]}à®ªà¯†');
+  s = s.replaceAll('à®©à®ª', 'à®ªà¯†');
 
-  s = s.replaceAll('னட', 'டை');
-  s = s.replaceAll('னற', 'றை');
-  s = s.replaceAll('னல', 'லை');
-  s = s.replaceAll('னர', 'ரை');
-  s = s.replaceAll('னன', 'னை');
-  s = s.replaceAll('னழ', 'ழை');
-  s = s.replaceAll('னய', 'யை');
-  s = s.replaceAll('னக', 'கை');
-  s = s.replaceAll('னத', 'தெ');
-  s = s.replaceAllMapped(RegExp(r'([ஓதி])னச'), (m) => '${m[1]}சை');
-  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])னச', unicode: true), (m) => '${m[1]}செ');
-  s = s.replaceAll('னச', 'செ');
-  s = s.replaceAllMapped(RegExp(r'னவ(?=[ய்ப்னய])'), (m) => 'வை');
-  s = s.replaceAll('னவ', 'வெ');
+  s = s.replaceAll('à®©à®Ÿ', 'à®Ÿà¯ˆ');
+  s = s.replaceAll('à®©à®±', 'à®±à¯ˆ');
+  s = s.replaceAll('à®©à®²', 'à®²à¯ˆ');
+  s = s.replaceAll('à®©à®°', 'à®°à¯ˆ');
+  s = s.replaceAll('à®©à®©', 'à®©à¯ˆ');
+  s = s.replaceAll('à®©à®´', 'à®´à¯ˆ');
+  s = s.replaceAll('à®©à®¯', 'à®¯à¯ˆ');
+  s = s.replaceAll('à®©à®•', 'à®•à¯ˆ');
+  s = s.replaceAll('à®©à®¤', 'à®¤à¯†');
+  s = s.replaceAllMapped(RegExp(r'([à®“à®¤à®¿])à®©à®š'), (m) => '${m[1]}à®šà¯ˆ');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])à®©à®š', unicode: true), (m) => '${m[1]}à®šà¯†');
+  s = s.replaceAll('à®©à®š', 'à®šà¯†');
+  s = s.replaceAllMapped(RegExp(r'à®©à®µ(?=[à®¯à¯à®ªà¯à®©à®¯])'), (m) => 'à®µà¯ˆ');
+  s = s.replaceAll('à®©à®µ', 'à®µà¯†');
 
-  // 4. In this font variant, ை used as consonant ம
-  s = s.replaceAll('காரைலையின்', 'காரமலையின்');
-  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])ை([ா-்])', unicode: true), (m) => '${m[1]}ம${m[2]}');
-  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])ை(?=[க-ஹ])', unicode: true), (m) => '${m[1]}ம');
-  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ாிீுூெேைொோௌ])ைா'), (m) => '${m[1]}மா');
-  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ாிீுூெேைொோௌ])ை([ா-்])'), (m) => '${m[1]}ம${m[2]}');
-  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ாிீுூெேைொோௌ])ை(?=[க-ஹ])'), (m) => '${m[1]}ம');
-  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ா-்])ைீ'), (m) => '${m[1]}மீ');
-  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ா-்])ைு'), (m) => '${m[1]}மு');
-  s = s.replaceAllMapped(RegExp(r'([க-ஹ][ா-்])ை(?=[றரனணதடபகசழ])'), (m) => '${m[1]}ம');
-  s = s.replaceAll('கமனே', 'மகனே');
+  // 4. In this font variant, à¯ˆ used as consonant à®®
+  s = s.replaceAll('à®•à®¾à®°à¯ˆà®²à¯ˆà®¯à®¿à®©à¯', 'à®•à®¾à®°à®®à®²à¯ˆà®¯à®¿à®©à¯');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])à¯ˆ([à®¾-à¯])', unicode: true), (m) => '${m[1]}à®®${m[2]}');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s\p{P}])à¯ˆ(?=[à®•-à®¹])', unicode: true), (m) => '${m[1]}à®®');
+  s = s.replaceAllMapped(RegExp(r'([à®•-à®¹][à®¾à®¿à¯€à¯à¯‚à¯†à¯‡à¯ˆà¯Šà¯‹à¯Œ])à¯ˆà®¾'), (m) => '${m[1]}à®®à®¾');
+  s = s.replaceAllMapped(RegExp(r'([à®•-à®¹][à®¾à®¿à¯€à¯à¯‚à¯†à¯‡à¯ˆà¯Šà¯‹à¯Œ])à¯ˆ([à®¾-à¯])'), (m) => '${m[1]}à®®${m[2]}');
+  s = s.replaceAllMapped(RegExp(r'([à®•-à®¹][à®¾à®¿à¯€à¯à¯‚à¯†à¯‡à¯ˆà¯Šà¯‹à¯Œ])à¯ˆ(?=[à®•-à®¹])'), (m) => '${m[1]}à®®');
+  s = s.replaceAllMapped(RegExp(r'([à®•-à®¹][à®¾-à¯])à¯ˆà¯€'), (m) => '${m[1]}à®®à¯€');
+  s = s.replaceAllMapped(RegExp(r'([à®•-à®¹][à®¾-à¯])à¯ˆà¯'), (m) => '${m[1]}à®®à¯');
+  s = s.replaceAllMapped(RegExp(r'([à®•-à®¹][à®¾-à¯])à¯ˆ(?=[à®±à®°à®©à®£à®¤à®Ÿà®ªà®•à®šà®´])'), (m) => '${m[1]}à®®');
+  s = s.replaceAll('à®•à®®à®©à¯‡', 'à®®à®•à®©à¯‡');
 
   return s;
 }
@@ -519,8 +521,8 @@ String normalizeVisualPreBaseVowels(String text) {
 
   String s = text;
 
-  // 1. Two consecutive pre-base vowels at start of word/token (e.g. ேதைர -> தேரை)
-  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0BCD])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])'), (m) => '${m[1]}${m[3]}${m[2]}${m[5]}${m[4]}');
+  // 1. Two consecutive pre-base vowels at start of word/token (e.g. à¯‡à®¤à¯ˆà®° -> à®¤à¯‡à®°à¯ˆ)
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("Â«\x27\-\u0BCD])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])'), (m) => '${m[1]}${m[3]}${m[2]}${m[5]}${m[4]}');
 
   // 2. Visual Circumfixes
   s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9]\u0BCD)\u0BC6([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCA');
@@ -531,21 +533,21 @@ String normalizeVisualPreBaseVowels(String text) {
   s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC7([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]} ${m[2]}\u0BCB');
   s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6([\u0B95-\u0BB9])[ \t]*(?:\u0BD7|\u0BB3(?!\u0BCD))'), (m) => '${m[1]} ${m[2]}\u0BCC');
 
-  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCA');
-  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC7([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCB');
-  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])[ \t]*(?:\u0BD7|\u0BB3(?!\u0BCD))'), (m) => '${m[1]}${m[2]}\u0BCC');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("Â«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCA');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("Â«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC7([\u0B95-\u0BB9])[ \t]*\u0BBE'), (m) => '${m[1]}${m[2]}\u0BCB');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("Â«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])[ \t]*(?:\u0BD7|\u0BB3(?!\u0BCD))'), (m) => '${m[1]}${m[2]}\u0BCC');
 
   s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6[ \t]*\u0BBE'), (m) => '${m[1]}\u0BCA');
   s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC7[ \t]*\u0BBE'), (m) => '${m[1]}\u0BCB');
   s = s.replaceAllMapped(RegExp(r'([\u0B95-\u0BB9])\u0BC6[ \t]*(?:\u0BD7|\u0BB3(?!\u0BCD))'), (m) => '${m[1]}\u0BCC');
 
   // 3. Pre-base standalone vowels before consonant
-  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC6');
-  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC7([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC7');
-  s = s.replaceAllMapped(RegExp(r'(^|[\s("«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC8([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC8');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("Â«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC6([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC6');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("Â«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC7([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC7');
+  s = s.replaceAllMapped(RegExp(r'(^|[\s("Â«\x27\-\u0B85-\u0B94\u0BBE-\u0BCD\u0BD7])\u0BC8([\u0B95-\u0BB9])(?![\u0BBE-\u0BCD\u0BD7])'), (m) => '${m[1]}${m[2]}\u0BC8');
 
-  // 4. Universal Typewriter / Visual Pre-Base (ெ, ே, ை) Reordering inside words
-  s = s.replaceAllMapped(RegExp(r'([\u0B85-\u0BB9\u0BBE-\u0BCD])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])(?=[ \t\r\n,.;:!?”\x22\x27’\)\]}]|$|[கசதப]\u0BCD)'), (m) => '${m[1]}${m[3]}${m[2]}');
+  // 4. Universal Typewriter / Visual Pre-Base (à¯†, à¯‡, à¯ˆ) Reordering inside words
+  s = s.replaceAllMapped(RegExp(r'([\u0B85-\u0BB9\u0BBE-\u0BCD])([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9])(?=[ \t\r\n,.;:!?â€\x22\x27â€™\)\]}]|$|[à®•à®šà®¤à®ª]\u0BCD)'), (m) => '${m[1]}${m[3]}${m[2]}');
 
   return s;
 }
@@ -568,29 +570,29 @@ String normalizeTamilKerningAndSyllables(String text) {
     s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])\r?\n[ \t]*([\u0B95-\u0BB9]\u0BCD)'), (m) => '${m[1]}${m[2]}');
   }
 
-  // 3. Reconnect non-final virama consonants (வல்லினம்/மெல்லினம்: க், ங், ச், ஞ், ட், த், ப், ற், ந்)
+  // 3. Reconnect non-final virama consonants (à®µà®²à¯à®²à®¿à®©à®®à¯/à®®à¯†à®²à¯à®²à®¿à®©à®®à¯: à®•à¯, à®™à¯, à®šà¯, à®žà¯, à®Ÿà¯, à®¤à¯, à®ªà¯, à®±à¯, à®¨à¯)
   prev = '';
   while (prev != s) {
     prev = s;
-    s = s.replaceAllMapped(RegExp(r'([கஙசஞடதபறந]\u0BCD)[ \t]+([\u0B80-\u0BFF])'), (m) => '${m[1]}${m[2]}');
+    s = s.replaceAllMapped(RegExp(r'([à®•à®™à®šà®žà®Ÿà®¤à®ªà®±à®¨]\u0BCD)[ \t]+([\u0B80-\u0BFF])'), (m) => '${m[1]}${m[2]}');
   }
 
-  // 4. Reconnect letters that can NEVER begin a native Tamil word: ட, ண, ர, ல, ழ, ள, ற, ன
+  // 4. Reconnect letters that can NEVER begin a native Tamil word: à®Ÿ, à®£, à®°, à®², à®´, à®³, à®±, à®©
   prev = '';
   while (prev != s) {
     prev = s;
-    s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([டணரலழளறன](?:[\u0BBE-\u0BCD\u0BD7])?)'), (m) => '${m[1]}${m[2]}');
+    s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([à®Ÿà®£à®°à®²à®´à®³à®±à®©](?:[\u0BBE-\u0BCD\u0BD7])?)'), (m) => '${m[1]}${m[2]}');
   }
 
-  // 5. Reconnect suffixes (கள், க்கு, இல், உடைய, ஆல், ஓடு)
-  s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+(கள்|க்கு|இல்|உடைய|ஆல்|ஓடு)(?=[ \t\r\n,.;:!?]|$)'), (m) => '${m[1]}${m[2]}');
+  // 5. Reconnect suffixes (à®•à®³à¯, à®•à¯à®•à¯, à®‡à®²à¯, à®‰à®Ÿà¯ˆà®¯, à®†à®²à¯, à®“à®Ÿà¯)
+  s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+(à®•à®³à¯|à®•à¯à®•à¯|à®‡à®²à¯|à®‰à®Ÿà¯ˆà®¯|à®†à®²à¯|à®“à®Ÿà¯)(?=[ \t\r\n,.;:!?]|$)'), (m) => '${m[1]}${m[2]}');
 
   // 6. Reconnect isolated single bare consonants
   prev = '';
   while (prev != s) {
     prev = s;
-    s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([கஙசஞடணதநபமயரலவழளறன])(?=[ \t\r\n,.;:!?]|$)'), (m) => '${m[1]}${m[2]}');
-    s = s.replaceAllMapped(RegExp(r'(^|[ \t\r\n,.;:!?])([கஙசஞடணதநபமயரலவழளறன])[ \t]+([\u0B80-\u0BFF])'), (m) => '${m[1]}${m[2]}${m[3]}');
+    s = s.replaceAllMapped(RegExp(r'([\u0B80-\u0BFF])[ \t]+([à®•à®™à®šà®žà®Ÿà®£à®¤à®¨à®ªà®®à®¯à®°à®²à®µà®´à®³à®±à®©])(?=[ \t\r\n,.;:!?]|$)'), (m) => '${m[1]}${m[2]}');
+    s = s.replaceAllMapped(RegExp(r'(^|[ \t\r\n,.;:!?])([à®•à®™à®šà®žà®Ÿà®£à®¤à®¨à®ªà®®à®¯à®°à®²à®µà®´à®³à®±à®©])[ \t]+([\u0B80-\u0BFF])'), (m) => '${m[1]}${m[2]}${m[3]}');
   }
 
   // 7. General kerning reconnector for single-syllable sequence artifacts
@@ -622,7 +624,7 @@ String normalizeTamilKerningAndSyllables(String text) {
 
             if (lastIsSingle && !_kValidSingleSyllableWords.contains(last)) {
               if (RegExp(r'^[\u0B85-\u0B94]$').hasMatch(last)) {
-                if (tok == 'வர்கள்' || tok == 'யற்கை' || tok == 'லக்கியம்' || tok == 'ரசாங்கம்' || tokIsSingle) {
+                if (tok == 'à®µà®°à¯à®•à®³à¯' || tok == 'à®¯à®±à¯à®•à¯ˆ' || tok == 'à®²à®•à¯à®•à®¿à®¯à®®à¯' || tok == 'à®°à®šà®¾à®™à¯à®•à®®à¯' || tokIsSingle) {
                   recombined[recombined.length - 1] = last + tok;
                   continue;
                 }
@@ -736,7 +738,7 @@ class WritePage extends StatefulWidget {
     super.key,
     this.draftId,
     this.draftContent,
-    this.draftCover, // 🔥 ADD THIS
+    this.draftCover, // ðŸ”¥ ADD THIS
     this.category,
   });
 
@@ -748,7 +750,7 @@ class _WritePageState extends State<WritePage> {
   String? _draftId;
   int? selectedCategoryId;
 
-  // previously a fixed constant – use a getter so the limit updates
+  // previously a fixed constant â€“ use a getter so the limit updates
   // with the screen size/keyboard adjustments.
   double get _pageHeightLimit => MediaQuery.of(context).size.height * 0.65;
 
@@ -779,7 +781,7 @@ class _WritePageState extends State<WritePage> {
   bool _isPdfExtractionDialogVisible = false;
   String _pdfExtractionStatus = "";
   final ValueNotifier<String> _pdfExtractionStatusNotifier = ValueNotifier("");
-  static const int _kMaxPdfUploadBytes = 300 * 1024 * 1024;
+  static const int _kMaxPdfUploadBytes = 100 * 1024 * 1024;
 
   String _resolveImageUrl(String? path) {
     if (path == null || path.isEmpty) return "";
@@ -898,7 +900,7 @@ class _WritePageState extends State<WritePage> {
       }
     }
 
-    // ✅ INSERT COVER AS FIRST BLOCK
+    // âœ… INSERT COVER AS FIRST BLOCK
     if (widget.draftCover != null && widget.draftCover!.isNotEmpty) {
       _pages[0].blocks.insert(0, PageBlock.networkImage(widget.draftCover!));
     }
@@ -989,7 +991,7 @@ class _WritePageState extends State<WritePage> {
 
       if (fileSize > _kMaxPdfUploadBytes) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Maximum file size is 300MB")),
+          const SnackBar(content: Text("Maximum file size is 100 MB")),
         );
         return;
       }
@@ -1423,12 +1425,12 @@ class _WritePageState extends State<WritePage> {
                       lineSpacing: b.lineSpacing,
                       letterSpacing: b.letterSpacing,
                       textAlign: b.textAlign,
-                      blockId: b.blockId, // 🔥 FIX: Preserve blockId
+                      blockId: b.blockId, // ðŸ”¥ FIX: Preserve blockId
                     );
                   } else {
                     var img = PageBlock.networkImage(
                       b.imageUrl ?? "",
-                      blockId: b.blockId, // 🔥 FIX: Preserve blockId
+                      blockId: b.blockId, // ðŸ”¥ FIX: Preserve blockId
                     );
                     img.image = b.image;
                     img.imageWidth = b.imageWidth;
@@ -1585,7 +1587,7 @@ class _WritePageState extends State<WritePage> {
   }
 
   /// Sanitize pasted/typed text to remove malformed UTF-16 sequences.
-  /// Lone surrogate characters (U+D800–U+DFFF) are illegal in Dart strings
+  /// Lone surrogate characters (U+D800â€“U+DFFF) are illegal in Dart strings
   /// and cause "string is not well-formed UTF-16" crashes in TextPainter,
   /// substring(), and RegExp operations.
   String _sanitizeText(String raw) {
@@ -1599,7 +1601,7 @@ class _WritePageState extends State<WritePage> {
       }
       return buf.toString();
     } catch (_) {
-      // Fallback: code-unit scan — skip lone high/low surrogates
+      // Fallback: code-unit scan â€” skip lone high/low surrogates
       final buf = StringBuffer();
       int i = 0;
       while (i < raw.length) {
@@ -1609,16 +1611,16 @@ class _WritePageState extends State<WritePage> {
           if (i + 1 < raw.length) {
             final next = raw.codeUnitAt(i + 1);
             if (next >= 0xDC00 && next <= 0xDFFF) {
-              // Valid surrogate pair — write both code units
+              // Valid surrogate pair â€” write both code units
               buf.writeCharCode(cu);
               buf.writeCharCode(next);
               i += 2;
               continue;
             }
           }
-          i++; // lone high surrogate — skip
+          i++; // lone high surrogate â€” skip
         } else if (cu >= 0xDC00 && cu <= 0xDFFF) {
-          i++; // lone low surrogate — skip
+          i++; // lone low surrogate â€” skip
         } else {
           buf.writeCharCode(cu);
           i++;
@@ -1782,7 +1784,7 @@ class _WritePageState extends State<WritePage> {
 
         if (blocksOnThisPage.isNotEmpty) {
           int lastTouched = _distributeBlocksToPages(p, blocksOnThisPage);
-          // Only carry over if the last written page still overflows —
+          // Only carry over if the last written page still overflows â€”
           // otherwise the outer loop re-processes already-filled pages and
           // duplicates their content.
           if (lastTouched > p && lastTouched < _pages.length) {
@@ -1990,7 +1992,7 @@ class _WritePageState extends State<WritePage> {
               low = mid;
             }
           }
-          // ── Clean the cut point to a proper word boundary ───────────────
+          // â”€â”€ Clean the cut point to a proper word boundary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           // low is the max chars that fit. Walk back to the nearest clean break.
           low = _cleanSplitPoint(remaining, low);
 
@@ -2017,7 +2019,7 @@ class _WritePageState extends State<WritePage> {
     return pageIdx;
   }
 
-  /// Finds the best position ≤ [maxPos] in [text] to split without breaking
+  /// Finds the best position â‰¤ [maxPos] in [text] to split without breaking
   /// words, Tamil syllables, or UTF-16 surrogate pairs. Priority order:
   ///   1. Paragraph boundary (\n\n or \n)
   ///   2. Word boundary (space)
@@ -2028,7 +2030,7 @@ class _WritePageState extends State<WritePage> {
     if (maxPos <= 0 || text.isEmpty) return 0;
     if (maxPos >= text.length) return text.length;
 
-    // ── Clamp maxPos so we never start inside a low surrogate ─────────────
+    // â”€â”€ Clamp maxPos so we never start inside a low surrogate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     int safeMax = maxPos;
     while (safeMax > 0 && safeMax < text.length) {
       final cu = text.codeUnitAt(safeMax);
@@ -2064,7 +2066,7 @@ class _WritePageState extends State<WritePage> {
     }
 
     // 3. Tamil syllable boundary: avoid cutting inside dependent vowel signs
-    // Tamil vowel signs (மாத்திரை): U+0BBE–U+0BCD, U+0BD7
+    // Tamil vowel signs (à®®à®¾à®¤à¯à®¤à®¿à®°à¯ˆ): U+0BBEâ€“U+0BCD, U+0BD7
     int pos = safeMax;
     while (pos > 1 && pos < text.length) {
       try {
@@ -2080,7 +2082,7 @@ class _WritePageState extends State<WritePage> {
     }
     if (pos > 0 && pos != safeMax) return pos;
 
-    // 4. Last resort – use the surrogate-safe max position
+    // 4. Last resort â€“ use the surrogate-safe max position
     return safeMax;
   }
 
@@ -2095,7 +2097,7 @@ class _WritePageState extends State<WritePage> {
       return;
     }
 
-    // ── Sanitize pasted content ──────────────────────────────────────────────
+    // â”€â”€ Sanitize pasted content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Remove malformed UTF-16 sequences (lone surrogates) that cause
     // "string is not well-formed UTF-16" crashes in TextPainter / substring().
     final String sanitized = _sanitizeText(value);
@@ -2117,7 +2119,7 @@ class _WritePageState extends State<WritePage> {
     }
 
     setState(() {
-      // Update text without truncating lines — use sanitized text
+      // Update text without truncating lines â€” use sanitized text
       _pages[pageIndex].blocks[blockIndex].text = sanitized;
       _pages[pageIndex].blocks[blockIndex].previousText = sanitized;
 
@@ -2352,7 +2354,7 @@ class _WritePageState extends State<WritePage> {
         });
       }
     } catch (e) {
-      print("❌ Draft load error: $e");
+      print("âŒ Draft load error: $e");
       if (_pages.isEmpty) {
         setState(() {
           _pages = [
@@ -2572,10 +2574,20 @@ class _WritePageState extends State<WritePage> {
   }
 
   Future<void> _pickImageForPage(int index) async {
-    final XFile? image = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
+    XFile? image;
+    try {
+      image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open gallery: ${e.toString()}')),
+        );
+      }
+      return;
+    }
 
     if (image != null) {
       _flushHistoryIfPending();
@@ -2625,7 +2637,7 @@ class _WritePageState extends State<WritePage> {
           _pages[targetPage].blocks.clear();
         }
 
-        _pages[targetPage].blocks.add(PageBlock.image(File(image.path)));
+        _pages[targetPage].blocks.add(PageBlock.image(File(image!.path)));
 
         _currentPage = targetPage;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2673,7 +2685,7 @@ class _WritePageState extends State<WritePage> {
 
     _flushHistoryIfPending();
 
-    int pageToDelete = _currentPage; // ✅ lock the correct page index
+    int pageToDelete = _currentPage; // âœ… lock the correct page index
 
     setState(() {
       _pages.removeAt(pageToDelete);
@@ -4544,11 +4556,21 @@ class _CoverEditorPageState extends State<CoverEditorPage> {
   ];
 
   Future<void> _pickCoverImage() async {
-    final XFile? picked = await _picker.pickImage(source: ImageSource.gallery);
+    XFile? picked;
+    try {
+      picked = await _picker.pickImage(source: ImageSource.gallery);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open gallery: ${e.toString()}')),
+        );
+      }
+      return;
+    }
 
     if (picked != null) {
       setState(() {
-        _coverImage = File(picked.path);
+        _coverImage = File(picked!.path);
       });
     }
   }
@@ -4573,28 +4595,58 @@ class _CoverEditorPageState extends State<CoverEditorPage> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PostPage(
-                    pages: widget.pages,
-                    draftId: widget.draftId,
-                    coverImage: _coverImage,
-                    title: _titleController.text,
-                    titleFontSize: _fontSize,
-                    titleColor: _fontColor,
-                    titleFontFamily: _fontFamily,
-                    titlePosition: _textPosition,
-                    category: widget.category,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PostPage(
+                      pages: widget.pages,
+                      draftId: widget.draftId,
+                      coverImage: _coverImage,
+                      title: _titleController.text,
+                      titleFontSize: _fontSize,
+                      titleColor: _fontColor,
+                      titleFontFamily: _fontFamily,
+                      titlePosition: _textPosition,
+                      category: widget.category,
+                    ),
                   ),
+                );
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF0729E8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
-              );
-            },
-            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Next',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0729E8),
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 13,
+                    color: Color(0xFF0729E8),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
@@ -4840,7 +4892,7 @@ class _CoverEditorPageState extends State<CoverEditorPage> {
 
 class PostPage extends StatefulWidget {
   final List<PageData> pages;
-  final String? draftId; // 🔥 ADD THIS
+  final String? draftId; // ðŸ”¥ ADD THIS
 
   final File? coverImage;
   final String? title;
@@ -5354,7 +5406,7 @@ class _PostPageState extends State<PostPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "Title (தலைப்பு)",
+          "Title (à®¤à®²à¯ˆà®ªà¯à®ªà¯)",
           style: TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 16,
@@ -5559,7 +5611,7 @@ class _PostPageState extends State<PostPage> {
                 const Divider(),
                 const SizedBox(height: 12),
                 const Text(
-                  "Select Community (கம்யூனிட்டி தேர்வு):",
+                  "Select Community (à®•à®®à¯à®¯à¯‚à®©à®¿à®Ÿà¯à®Ÿà®¿ à®¤à¯‡à®°à¯à®µà¯):",
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,

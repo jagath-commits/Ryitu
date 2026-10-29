@@ -1746,6 +1746,7 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
       color: color,
       height: height,
       letterSpacing: letterSpacing,
+      wordSpacing: 0.0, // Never inject artificial word gaps
       fontWeight: isHeadline ? FontWeight.w900 : FontWeight.w400,
     );
 
@@ -1766,8 +1767,10 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
     if (idx != null && idx >= 0 && idx < TextAlign.values.length) {
       return TextAlign.values[idx];
     }
-    // Default: justify all content text for clean reading experience
-    return TextAlign.justify;
+    // Default: start alignment — avoids Flutter's justify stretching word
+    // gaps unpredictably (especially in Tamil / short lines), matching the
+    // preview shown on the publish page.
+    return TextAlign.start;
   }
 
   void _showSettingsBottomSheet(BuildContext context) {
@@ -2491,14 +2494,30 @@ class _FullScreenPostViewerState extends State<FullScreenPostViewer> {
                                         page: page,
                                         defaultTextColor: textColor,
                                       );
-                                      final textAlign = _resolveTextAlign(block, page);
+                                      // Force TextAlign.start to prevent Flutter's justify
+                                      // mode from stretching multi-space gaps (common in
+                                      // PDF-extracted text) into huge inter-word voids.
+                                      // Any user-set alignment from the writing page is
+                                      // preserved — only justify is overridden to start.
+                                      final rawAlign = _resolveTextAlign(block, page);
+                                      final textAlign = rawAlign == TextAlign.justify
+                                          ? TextAlign.start
+                                          : rawAlign;
+
+                                      // Collapse multiple consecutive spaces/tabs into a
+                                      // single space so PDF kerning artifacts don't appear
+                                      // as visible word gaps in the reading view.
+                                      final displayText = (block['text'] ?? '')
+                                          .toString()
+                                          .replaceAll(RegExp(r'[ \t]{2,}'), ' ')
+                                          .trim();
 
                                       return Padding(
                                         padding: const EdgeInsets.only(bottom: 16),
                                         child: SizedBox(
                                           width: double.infinity,
                                           child: Text(
-                                            block['text'] ?? "",
+                                            displayText,
                                             textAlign: textAlign,
                                             style: textStyle,
                                           ),

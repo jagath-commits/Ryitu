@@ -71,35 +71,45 @@ const CP1252_BYTES_MAP = {
 };
 
 // Legacy Softland / Shree / TAM glyph map
-const LEGACY_SPECIAL_MAP = {
+// Legacy glyphs that only exist in legacy Tamil fonts (safe to replace in Tamil passages)
+const PURE_LEGACY_MAP = {
   '\u01AC': 'ரி',  // Ƭ
   '\u00AF': 'ரு',  // ¯
   '\u00AB': 'மு',  // «
   '\u00AC': 'மூ',  // ¬
-  '\u00A2': 'து',  // ¢
-  '\u00B2': 'று',  // ²
-  '\u00A9': 'பு',  // ©
-  '\u00A7': 'ன்',  // §
   '\u00B8': 'ளி',  // ¸
-  '\u2022': 'கூ',  // •
-  '\u02DC': 'சு',  // ˜
   '\u00AA': 'பூ',  // ª
   '\u00BA': 'வு',  // º
   '\u00B6': 'ளு',  // ¶
-  '\u00B4': 'லு',  // ´
-  '\u00A3': 'நீ',  // £
   '\u0192': 'ல்',  // ƒ
   '\u201E': 'ள்',  // „
-  '\u2020': 'வ்',  // †
-  '\u20AC': 'ய்',  // €
   '\u201A': 'ற்',  // ‚
-  '\u0152': 'டி',  // Œ
-  '\u0153': 'டி',  // œ
-  '\u017E': 'டு',  // ž
-  '\u201D': 'கு',  // ”
   '\u017D': '\u0BBF', // Ž -> ி
   '\u01AB': 'ர்',  // ƫ
   '\x7F': 'ம்',
+};
+
+// Legacy glyphs that collide with standard Unicode symbols (quotes, bullet, copyright, currency)
+// These are ONLY mapped when attached to Tamil/legacy characters
+const PUNCTUATION_LEGACY_MAP = {
+  '\u00A9': 'பு',  // ©
+  '\u00A7': 'ன்',  // §
+  '\u00A2': 'து',  // ¢
+  '\u00B2': 'று',  // ²
+  '\u00B4': 'லு',  // ´
+  '\u00A3': 'நீ',  // £
+  '\u2020': 'வ்',  // †
+  '\u20AC': 'ய்',  // €
+  '\u0152': 'டி',  // Œ
+  '\u0153': 'டி',  // œ
+  '\u017E': 'டு',  // ž
+  '\u201D': 'கு',  // ” (only when preceded by Tamil consonant)
+  '\u02DC': 'சு',  // ˜
+};
+
+const LEGACY_SPECIAL_MAP = {
+  ...PURE_LEGACY_MAP,
+  ...PUNCTUATION_LEGACY_MAP
 };
 
 const LEGACY_ASCII_MAP = {
@@ -272,18 +282,16 @@ function decodeLegacyTamilIfPresent(text) {
 
   const hasTamil = /[\u0B80-\u0BFF]/.test(text);
   const hasLegacyBytes = /[\x80\x82-\x86\x8C\x8E\x8F\x91-\x95\x98\x9C\x9E]/.test(text);
-  const hasPureLegacyGlyphs = /[Ƭ«¬¢²§¸˜ªº¶´£\u0192\u201E\u2020\u20AC\u201A\u0152\u0153\u017E\u201D\u017D\u01AC\u01AB\u02DC\x7F]/.test(text);
-  // Bullet • is only 'கூ' if text contains other legacy markers, not when acting as standard list bullet
-  const hasLegacyGlyphs = hasPureLegacyGlyphs || (hasTamil && /(?:(?<!^|[\r\n\s])•|•(?!\s)|©)/.test(text));
-  const hasTamilWithAscii = /([\u0B80-\u0BFF]\s*[{}\Reference|~tuvxyz])|([{}\Reference|~tuvxyz]\s*[\u0B80-\u0BFF])/.test(text);
+  const hasPureLegacyGlyphs = /[Ƭ«¬¸ªº¶\u0192\u201E\u201A\u017D\u01AC\u01AB\x7F]/.test(text);
+  const hasTamilWithAscii = /([\u0B80-\u0BFF\u0080-\u024F]\s*[{}[\]|~tuvxyz])|([{}[\]|~tuvxyz]\s*[\u0B80-\u0BFF\u0080-\u024F])/.test(text);
 
-  if (!hasLegacyBytes && !hasLegacyGlyphs && !hasTamilWithAscii) {
+  if (!hasLegacyBytes && !hasPureLegacyGlyphs && !hasTamilWithAscii) {
     return text;
   }
 
   let result = text;
 
-  // 0a. Replace CP1252 raw bytes first
+  // 0a. Replace CP1252 raw bytes first (only non-printable byte range)
   for (const [byteChar, repl] of Object.entries(CP1252_BYTES_MAP)) {
     if (result.includes(byteChar)) {
       result = result.split(byteChar).join(repl);
@@ -293,46 +301,55 @@ function decodeLegacyTamilIfPresent(text) {
   // 0b. Specific plural suffix composite: கள + ƒ/„/raw bytes -> கள்
   result = result.replace(/கள[ \t]*[\u0192\u201E\x83\x84]/gu, 'கள்');
 
-  // 1. Replace multi-byte / special unicode glyphs & 0x7F (ம்)
-  for (const [gly, repl] of Object.entries(LEGACY_SPECIAL_MAP)) {
-    if (gly === '\\u2022') continue;
-    if (gly === '\u2022') {
-      // Never replace bullet • if it is a list item (followed by space or at line start)
-      result = result.replace(/(?<!^|[\r\n\s])•|•(?!\s)/g, 'கூ');
-      continue;
-    }
+  // 1. Pure legacy glyphs that are never used in normal English text
+  for (const [gly, repl] of Object.entries(PURE_LEGACY_MAP)) {
     if (result.includes(gly)) {
       result = result.split(gly).join(repl);
     }
   }
 
-  // 2. Remove space before legacy ASCII markers and replace them
+  // 2. Remove space before legacy ASCII markers and replace them strictly in Tamil word context
+  const TAMIL_OR_LEGACY = '[\\u0B80-\\u0BFF\\u0080-\\u024F]';
   if (hasTamilWithAscii) {
-    result = result.replace(/([\u0B80-\u0BFF])[ \t]+([{}\Reference|~tuvxyz])/g, '$1$2');
+    result = result.replace(/([\u0B80-\u0BFF\u0080-\u024F])[ \t]+([{}|~tuvxyz])/g, '$1$2');
     for (const [asc, repl] of Object.entries(LEGACY_ASCII_MAP)) {
-      if (result.includes(asc)) {
-        result = result.split(asc).join(repl);
+      if ('tuvxyz'.includes(asc)) {
+        // ONLY replace if adjacent to a Tamil character or legacy glyph
+        const rx = new RegExp('(?<=' + TAMIL_OR_LEGACY + ')' + asc + '|' + asc + '(?=' + TAMIL_OR_LEGACY + ')', 'gu');
+        result = result.replace(rx, repl);
+      } else {
+        const esc = asc.replace(/[\\^$*+?.()|[\]{}]/g, '\\$&');
+        const rx = new RegExp('(?<=' + TAMIL_OR_LEGACY + ')' + esc + '|' + esc + '(?=' + TAMIL_OR_LEGACY + ')', 'gu');
+        result = result.replace(rx, repl);
       }
     }
   }
 
-  // 3. Reconnect space between consonant and vowel sign/virama
+  // 3. Ambiguous symbols: ONLY replace if attached to a Tamil or legacy glyph (not in standalone English contexts)
+  for (const [gly, repl] of Object.entries(PUNCTUATION_LEGACY_MAP)) {
+    if (!result.includes(gly)) continue;
+    if (gly === '\u201D') {
+      // Only replace closing quote ” if immediately preceded by a Tamil consonant or virama (e.g. தவŽக்” -> தவிக்கும்)
+      // or at start of word followed by a Tamil character (e.g. ”றிஞ்சி -> குறிஞ்சி, ”லப்பாடல் -> குலப்பாடல்)
+      result = result.replace(/(?<=[\u0B95-\u0BB9\u0BCD])\u201D(?=[\u0B80-\u0BFF\s\x7F]|$)/gu, repl);
+      result = result.replace(/(?<=^|[\s\p{P}])\u201D(?=[\u0B80-\u0BFF])/gu, repl);
+    } else {
+      const esc = gly.replace(/[\\^$*+?.()|[\]{}]/g, '\\$&');
+      result = result.replace(new RegExp('(?<=' + TAMIL_OR_LEGACY + ')' + esc + '|' + esc + '(?=' + TAMIL_OR_LEGACY + ')', 'gu'), repl);
+    }
+  }
+
+  // 4. Reconnect space between consonant and vowel sign/virama
   result = result.replace(/([\u0B95-\u0BB9])[ \t]+([\u0BBE-\u0BCD\u0BD7])/g, '$1$2');
   result = result.replace(/([\u0B95-\u0BB9])[ \t]*[“\u201C]/gu, '$1\u0BC0');
-
-  // 4. Dialogue Quotes (legacy font mapped opening quotes to ீ and closing quotes to கு)
-  result = result.replace(/([.?!,:])(?:[குீ”"']|[\u0BC0\u0BC1])+(?=[\s\n]|$)/gu, '$1”');
-  result = result.replace(/(?<=[க-ஹ]ம்|[க-ஹ]து|[க-ஹ]ான்|[க-ஹ]ாள்|[க-ஹ]ார்|[க-ஹ]ேன்)கு[ \t]+(?=என்று|என|என்ற|சொன்ன|கேட்ட|என்றார்)/gu, '” ');
-  result = result.replace(/(^|[\s(\[])[ீ“"']+(?=[\u0B85-\u0B94\u0B95-\u0BB9])/gu, '$1“');
-  result = result.replace(/‘‘/g, '“');
-
-  // Closing single quote encoded as ீ immediately after virama consonant
-  result = result.replace(/([\u0B95-\u0BB9]\u0BCD)\u0BC0(?=[\s,.;:!?]|$)/gu, '$1’');
-  result = result.replace(/`/g, '‘');
 
   // Reconnect virama + vowel signs (e.g. க் + ு -> கு)
   result = result.replace(/([\u0B95-\u0BB9])\u0BCD\u0BC1/gu, '$1\u0BC1');
   result = result.replace(/([\u0B95-\u0BB9])\u0BCD\u0BC2/gu, '$1\u0BC2');
+
+  // In legacy Tamil typesetting, closing single quote was encoded as ீ immediately after virama consonant
+  result = result.replace(/([\u0B95-\u0BB9]\u0BCD)\u0BC0(?=[\s,.;:!?]|$)/gu, '$1’');
+  result = result.replace(/`/g, '‘');
 
   return result;
 }
@@ -356,10 +373,16 @@ function decodeMacTamilPDF(text) {
   const EXACT_MAP = [
     ['æÒΩ£˜ ßæ∫ı ∏≈¢ª˜ ®≈√”Ú–', 'தண்ணீர் தேசம் கவிஞர் வைரமுத்து'],
     ['æÒΩ£˜ ßæ∫ı', 'தண்ணீர் தேசம்'],
+    ['æÒΩநீ˜ ßæ∫ı ∏≈¢ª˜ ®≈√”Ú–', 'தண்ணீர் தேசம் கவிஞர் வைரமுத்து'],
+    ['æÒΩநீ˜ ßæ∫ı', 'தண்ணீர் தேசம்'],
+    ['æÒΩநீ˜', 'தண்ணீர்'],
     ['∏≈¢ª˜ ®≈√”Ú–', 'கவிஞர் வைரமுத்து'],
+    ['æÒΩ£சு ßæ∫ı', 'தண்ணீர் தேசம்'],
+    ['æÒΩ£சு', 'தண்ணீர்'],
     ['æÒΩநீசு ßæ∫ı', 'தண்ணீர் தேசம்'],
     ['æÒΩநீசு', 'தண்ணீர்'],
     ['ßæ∫ı', 'தேசம்'],
+    ['∏≈துபூசு ®≈√”Ú–', 'கவிஞர் வைரமுத்து'],
     ['∏≈துபூசு ®≈√குÚ–', 'கவிஞர் வைரமுத்து'],
     ['∏≈துபூசு', 'கவிஞர்'],
     ['®≈√குÚ–', 'வைரமுத்து'],
@@ -470,6 +493,205 @@ function decodeMacTamilPDF(text) {
   });
 
   return processedLines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Anjal / TSCInaimathi font glyph → Tamil Unicode mapping
+// Empirically verified from pm0011.pdf (231-page novel "தண்ணீர் தேசம்" by வைரமுத்து).
+// Font: g_d0_f1 (TSCInaimathi/Anjal), Encoding: WinAnsi (no ToUnicode map).
+// Each key is the Unicode codepoint that pdf-parse extracts; the value is
+// the correct Tamil Unicode character(s) it represents.
+//
+// Pre-base kombu vowels (ெ ே ை) are stored BEFORE the consonant in TSCII
+// visual order and must be reordered to logical (Unicode) order after substitution.
+// ---------------------------------------------------------------------------
+const ANJAL_GLYPH_MAP = {
+  // ── Post-base vowel signs (stay after the consonant) ─────────────────────
+  '\u00B0': '\u0BBE', // ° → ா
+  '\u00A2': '\u0BBF', // ¢ → ி  (existing map wrongly had ¢='து')
+  '\u00A3': '\u0BC0', // £ → ீ  (existing map wrongly had £='நீ')
+  '\u00A4': '\u0BC1', // ¤ → ு
+  '\u02D8': '\u0BC2', // ˘ → ூ
+
+  // ── Pre-base kombu vowels (stored BEFORE consonant, reordered after decode) ──
+  '\u00DF': '\u0BC7', // ß → ே  (long-e kombu)  VERIFIED: ßæ∫ı = தேசம்
+  '\u00B6': '\u0BC6', // ¶ → ெ  (short-e kombu) VERIFIED: ¶¿Ò  = பெண்
+  '\u00AE': '\u0BC8', // ® → ை  (ai kombu)      VERIFIED: ®≈√"Ú– = வைரமுத்து
+
+  // ── Independent vowels ────────────────────────────────────────────────────
+  '\u00B4': '\u0B85', // ´ → அ   VERIFIED: ´வள் = அவள் ×20
+  '\u00D8': '\u0B89', // Ø → உ   VERIFIED: Ø¬¢˜ = உயிர், Øங்கள் = உங்கள்
+  '\u00A8': '\u0B86', // ¨ → ஆ
+  '\u02DB': '\u0B87', // ˛ → இ
+  '\u00B1': '\u0B8E', // ± → எ
+  '\u2264': '\u0B8F', // ≤ → ஏ
+  '\u2265': '\u0B90', // ≥ → ஐ   DERIVED: ≥ம்பதுகளில் = ஐம்பதுகளில் ✓
+  '\u00A5': '\u0B92', // ¥ → ஒ
+  '\u03BC': '\u0B93', // μ → ஓ
+  '\u00C6': '\u0B88', // Æ → ஈ   DERIVED: Æர்ப்பவை = ஈர்ப்பவை ✓
+  '\u00C0': '\u0B85', // À → அ   alternate அ glyph
+
+  // ── Consonants ────────────────────────────────────────────────────────────
+  '\u220F': '\u0B95', // ∏ → க   VERIFIED
+  '\u221E': '\u0B95', // ∞ → க   alternate க: ∞ற்றிக் = கற்றிக் ✓, ∞டல் = கடல் ✓
+  '\u00F8': '\u0BA8', // ø → ந   VERIFIED
+  '\u222B': '\u0B9A', // ∫ → ச   VERIFIED
+  '\u00AA': '\u0B9E', // ª → ஞ   VERIFIED: ∏≈¢ª˜ = கவிஞர்
+  '\u00BA': '\u0B9F', // º → ட   VERIFIED: ∏º¯ = கடல்
+  '\u0152': '\u0B9F', // Œ → ட   alternate ட: மீண்Œம் = மீண்டும் ✓
+  '\u03A9': '\u0BA3', // Ω → ண   VERIFIED: æÒΩ£˜ = தண்ணீர்
+  '\u00D1': '\u0BA3', // Ñ → ண   alternate ண: உÑணம் = உணணம் (food) ✓
+  '\u00E6': '\u0BA4', // æ → த   VERIFIED
+  '\u00BF': '\u0BAA', // ¿ → ப   VERIFIED
+  '\u00A1': '\u0BAE', // ¡ → ம   VERIFIED
+  '\u00AC': '\u0BB2', // ¬ → ல   VERIFIED: இல்¬ை, ப¬ம்
+  '\u0192': '\u0BB2', // ƒ → ல   alternate ல: கடற்காத-ƒ-ன் = கடற்காதலன் ✓
+  '\u2248': '\u0BB5', // ≈ → வ   VERIFIED
+  '\u2206': '\u0BB4', // ∆ → ழ
+  '\u00AB': '\u0BB3', // « → ள   VERIFIED: ´≈®« = அவளை ✓
+  '\u00BB': '\u0BB1', // » → ற
+  '\u221A': '\u0BB0', // √ → ர   VERIFIED: ∏≈¢ª˜ = கவிஞர்
+  '\u0178': '\u0BB0', // Ÿ → ர   alternate ர: அவŸக்கு = அவர்க்கு ✓
+  '\u00C9': '\u0B9C', // É → ஜ
+  '\u00D6': '\u0BB8\u0BCD', // Ö → ஸ்
+  '\u201B': '\u0BB5', // ‛ → வ   rare alternate
+  '\u201A': '\u0BB5', // ‚ → வ   DERIVED: ‚த்தாள் → வந்தாள் context ✓
+
+  // ── Consonant + virama (combined pulli glyphs) ───────────────────────────
+  '\u00CF': '\u0B95\u0BCD', // Ï → க்
+  '\u00CC': '\u0B99\u0BCD', // Ì → ங்
+  '\u00D3': '\u0B9A\u0BCD', // Ó → ச்
+  '\u00D4': '\u0B9E\u0BCD', // Ô → ஞ்
+  '\u00D2': '\u0BA3\u0BCD', // Ò → ண்  VERIFIED
+  '\u00DA': '\u0BA4\u0BCD', // Ú → த்  VERIFIED
+  '\u00DB': '\u0BA8\u0BCD', // Û → ந்
+  '\u00D9': '\u0BAA\u0BCD', // Ù → ப்
+  '\u0131': '\u0BAE\u0BCD', // ı → ம்  VERIFIED
+  '\u02DD': '\u0BA9\u0BCD', // ˝ → ன்
+  '\u02D9': '\u0BB4\u0BCD', // ˙ → ழ்
+  '\u02DA': '\u0BB3\u0BCD', // ˚ → ள்  VERIFIED: ø£˚ = நீங்கள்
+  '\u02C6': '\u0BAF\u0BCD', // ˆ → ய்
+  '\u02DC': '\u0BB0\u0BCD', // ˜ → ர்  VERIFIED: கவிஞர் = ∏≈¢ª˜
+  '\u00AF': '\u0BB2\u0BCD', // ¯ → ல்  VERIFIED: கடல் = ∏º¯
+  '\u00B8': '\u0BB1\u0BCD', // ¸ → ற்  VERIFIED: கடற்காதலன்
+  '\u2211': '\u0BAE\u0BCD', // ∑ → ம்  alternate: தங்க∑ = தங்கம் ✓
+
+  // ── Consonant + vowel (combined glyphs) ──────────────────────────────────
+  '\u00C3': '\u0B95\u0BC1', // Ã → கு  VERIFIED
+  '\u00D5': '\u0B9A\u0BC1', // Õ → சு
+  '\u203A': '\u0B9A\u0BC2', // › → சூ
+  '\u2013': '\u0BA4\u0BC1', // – → து  VERIFIED: வைரமுத்–து
+  '\u2021': '\u0BA4\u0BC2', // ‡ → தூ
+  '\u2014': '\u0BA8\u0BC1', // — → நு
+  '\u2044': '\u0BB1\u0BC1', // ⁄ → று
+  '\u2039': '\u0B95\u0BC2', // ‹ → கூ
+  '\u00F7': '\u0BB2\u0BC1', // ÷ → லு
+  '\u2019': '\u0BB0\u0BC1', // ' → ரு  VERIFIED: பெ+'ைம = பெருமை ✓
+  '\u00FF': '\u0BB4\u0BC1', // ÿ → ழு  VERIFIED: எÿந்து = எழுந்து ✓
+  '\u201D': '\u0BAE\u0BC1', // " → மு  VERIFIED: வைர"த்து = வைரமுத்து ✓
+  '\u201C': '\u0BAE\u0BC1', // " → மு  VERIFIED: கடல்"குந்தான் = கடல்முகுந்தான் ✓
+  '\u2018': '\u0BAF\u0BC1', // ' → யு  DERIVED: காதலி'ம் = காதலியும் ✓
+  '\u2026': '\u0BA9',       // … → ன   VERIFIED: மறந்துபோ…ான் = மறந்துபோனான் ✓, நவீ…ம் = நவீனம் ✓
+  '\u00B7': '\u0BA8\u0BC2', // · → நூ  DERIVED: ·ற்றாண்டு = நூற்றாண்டு ✓ (century)
+  '\u25CA': '\u0BB5\u0BC1', // ◊ → வு  DERIVED: உற◊த் = உறவுத் ✓
+  '\u0153': '\u0B9F\u0BC1', // œ → டு  DERIVED: கண்œக்கு = கண்டுக்கு ✓, பெண்œம் = பெண்டும் ✓
+  '\u00CA': '\u0BB2\u0BC2', // Ê → லூ  DERIVED: கல்Êரி = கல்லூரி (college) ✓, பÊன் = பலூன் ✓
+
+  // ── Private use / unmapped ────────────────────────────────────────────────
+  '\uF8FF': '', // Apple private-use glyph → empty (spacing artifact)
+};
+
+// Sorted entries for longest-key-first greedy matching (precomputed once)
+const _ANJAL_ENTRIES = Object.entries(ANJAL_GLYPH_MAP)
+  .sort((a, b) => b[0].length - a[0].length);
+
+/**
+ * Detects whether text contains the characteristic glyph codepoints of the
+ * Anjal / TSCInaimathi font (as extracted by pdf-parse from WinAnsi-encoded PDFs).
+ *
+ * Key signature characters: æ(U+00E6)=த, Ω(U+03A9)=ண, ∏(U+220F)=க, ≈(U+2248)=வ,
+ * ı(U+0131)=ம், ˜(U+02DC)=ர், Ú(U+00DA)=த்
+ *
+ * Requires at least 4 of these to be present to avoid false positives.
+ * Will NOT trigger on already-valid Unicode Tamil text (no Tamil block chars
+ * allowed beyond a tiny threshold when these glyphs are present).
+ */
+function isAnjalTSCIIEncoded(text) {
+  if (!text || typeof text !== 'string' || text.length < 10) return false;
+
+  // If text already has a significant amount of Unicode Tamil, it's already decoded
+  const tamilCount = (text.match(/[\u0B80-\u0BFF]/g) || []).length;
+  const totalNonSpace = text.replace(/\s/g, '').length;
+  if (tamilCount > 0 && (tamilCount / Math.max(totalNonSpace, 1)) > 0.15) return false;
+
+  // Check for Anjal signature characters
+  const SIGNATURES = [
+    '\u00E6', // æ → த
+    '\u03A9', // Ω → ண
+    '\u220F', // ∏ → க
+    '\u2248', // ≈ → வ
+    '\u0131', // ı → ம்
+    '\u02DC', // ˜ → ர்
+    '\u00DA', // Ú → த்
+    '\u222B', // ∫ → ச
+    '\u221A', // √ → ர
+  ];
+  let sigCount = 0;
+  for (const sig of SIGNATURES) {
+    if (text.includes(sig)) sigCount++;
+    if (sigCount >= 4) return true;
+  }
+  return false;
+}
+
+/**
+ * Decodes Anjal / TSCInaimathi font-encoded Tamil text extracted from PDFs with
+ * WinAnsi encoding and no ToUnicode map (e.g. pm0011.pdf "தண்ணீர் தேசம்").
+ *
+ * This function:
+ *  1. Detects the Anjal encoding signature (4+ characteristic glyphs).
+ *  2. Applies the complete ANJAL_GLYPH_MAP character-by-character substitution.
+ *  3. Reorders pre-base kombu vowels (ெ ே ை) from visual (before-consonant) to
+ *     Unicode logical order (after-consonant).
+ *  4. Normalizes duplicate viramas and whitespace.
+ *
+ * Does NOT modify text that is already valid Unicode Tamil or plain English.
+ */
+function decodeAnjalTSCIIPDF(text) {
+  if (!text || typeof text !== 'string') return text;
+  if (!isAnjalTSCIIEncoded(text)) return text;
+
+  // Pass 1: greedy longest-first character substitution
+  let result = '';
+  let i = 0;
+  while (i < text.length) {
+    let matched = false;
+    for (const [key, val] of _ANJAL_ENTRIES) {
+      if (text.startsWith(key, i)) {
+        result += val;
+        i += key.length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      result += text[i];
+      i++;
+    }
+  }
+
+  // Pass 2: reorder pre-base kombu vowels to Unicode logical order
+  // Pattern: [ெ|ே|ை] + [consonant] + [optional post-base vowel signs or virama]
+  //       → [consonant] + [optional post-base] + [kombu vowel]
+  result = result.replace(
+    /([\u0BC6\u0BC7\u0BC8])([\u0B95-\u0BB9\u0B9C\u0BB8][\u0BBE\u0BBF\u0BC0\u0BC1\u0BC2\u0BCD]*)/gu,
+    '$2$1'
+  );
+
+  // Pass 3: remove duplicate viramas
+  result = result.replace(/\u0BCD\u0BCD+/g, '\u0BCD');
+
+  return result;
 }
 
 /**
@@ -843,7 +1065,7 @@ function repairTamilSpellingAndTypography(text) {
 
   s = s.replace(/‘ம்/gu, 'யும்');
   s = s.replace(/(?<=[\u0B80-\u0BFF])‘|‘(?=[\u0B80-\u0BFF])/gu, 'யு');
-  s = s.replace(/(?<=[\u0B80-\u0BFF])“|“(?=[\u0B80-\u0BFF])/gu, 'பு');
+  s = s.replace(/(?<=ப்)“|“(?=ன்|ன|…)/gu, 'பு');
 
   s = s.replace(/(?<=[\u0B80-\u0BFFß®])º|º(?=[\u0B80-\u0BFFß®])/gu, 'ட');
   s = s.replace(/(?<=[\u0B80-\u0BFF])…|…(?=[\u0B80-\u0BFF])/gu, 'ன');
@@ -1399,8 +1621,18 @@ function cleanExtractedText(raw) {
     // 7. Decode Legacy Softland/Shree/TAM Tamil fonts if detected
     text = decodeLegacyTamilIfPresent(text);
 
+    // 7a. Decode Anjal / TSCInaimathi font (WinAnsi-encoded, no ToUnicode map)
+    //     Must run BEFORE MacRoman decoder since they target different glyph sets.
+    const beforeAnjal = (text.match(/[\u0B80-\u0BFF]/g) || []).length;
+    text = decodeAnjalTSCIIPDF(text);
+    const afterAnjal = (text.match(/[\u0B80-\u0BFF]/g) || []).length;
+    const anjalFired = afterAnjal > beforeAnjal + 20; // Anjal decoder produced significant Tamil
+
     // 8. Decode Legacy MacRoman / InDesign / TSCII Tamil fonts if detected
-    text = decodeMacTamilPDF(text);
+    //    Skip if Anjal decoder already decoded the text (avoids double-conversion)
+    if (!anjalFired) {
+      text = decodeMacTamilPDF(text);
+    }
 
     // 9. Decode Late-Volume DTP kombu remappings if detected (Velpari final chapters)
     text = decodeLateVolumeDtpTamil(text);
@@ -1458,6 +1690,8 @@ module.exports = {
   isTamilDocumentOrPassage,
   decodeLegacyTamilIfPresent,
   decodeMacTamilPDF,
+  decodeAnjalTSCIIPDF,
+  isAnjalTSCIIEncoded,
   decodeLateVolumeDtpTamil,
   decodeBaminiIfDetected,
   normalizeVisualPreBaseVowels,
@@ -1466,5 +1700,6 @@ module.exports = {
   LEGACY_ASCII_MAP,
   BAMINI_CONSONANTS_VIRAMA,
   BAMINI_SPECIAL,
-  BAMINI_BASIC
+  BAMINI_BASIC,
+  ANJAL_GLYPH_MAP,
 };

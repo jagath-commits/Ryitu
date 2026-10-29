@@ -66,17 +66,46 @@ const postStorage = multer.diskStorage({
 
 const uploadPdf = multer({
   storage: pdfStorage,
-  limits: { fileSize: env.MAX_FILE_SIZE },
+  limits: {
+    fileSize: env.MAX_FILE_SIZE,
+    fieldSize: 10 * 1024 * 1024,
+    fields: 30,
+    files: 1
+  },
   fileFilter: (req, file, cb) => {
-    const isPdf = file.mimetype === 'application/pdf' || path.extname(file.originalname).toLowerCase() === '.pdf';
-    if (isPdf) cb(null, true);
-    else cb(new Error('Only PDF documents are allowed.'), false);
+    const isPdfMime = file.mimetype === 'application/pdf' || file.mimetype === 'application/x-pdf' || file.mimetype === 'application/octet-stream';
+    const isPdfExt = path.extname(file.originalname).toLowerCase() === '.pdf';
+    if (isPdfMime || isPdfExt) {
+      cb(null, true);
+    } else {
+      const err = new Error('Only PDF documents are allowed.');
+      err.code = 'INVALID_FILE_TYPE';
+      cb(err, false);
+    }
   }
 }).single('pdf');
 
 const uploadDocument = multer({
   storage: documentStorage,
-  limits: { fileSize: env.MAX_FILE_SIZE, fieldSize: 300 * 1024 * 1024 }
+  limits: {
+    fileSize: env.MAX_FILE_SIZE,
+    fieldSize: 30 * 1024 * 1024,
+    fields: 50,
+    files: 1
+  },
+  fileFilter: (req, file, cb) => {
+    const isDoc = file.mimetype === 'application/pdf' ||
+      file.mimetype === 'application/x-pdf' ||
+      file.mimetype === 'application/octet-stream' ||
+      /\.(pdf|docx?|txt)$/i.test(file.originalname);
+    if (isDoc) {
+      cb(null, true);
+    } else {
+      const err = new Error('Only PDF, DOCX, and TXT documents are allowed.');
+      err.code = 'INVALID_FILE_TYPE';
+      cb(err, false);
+    }
+  }
 }).single('document');
 
 const communityStorage = multer.diskStorage({

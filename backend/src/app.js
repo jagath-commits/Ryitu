@@ -30,9 +30,9 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
-// Body parsing (support large payload for PDF pages JSON)
-app.use(express.json({ limit: '300mb' }));
-app.use(express.urlencoded({ extended: true, limit: '300mb' }));
+// Body parsing (support up to 100MB PDF document requests with overhead)
+app.use(express.json({ limit: '110mb' }));
+app.use(express.urlencoded({ extended: true, limit: '110mb' }));
 
 // Serve uploaded files statically
 const uploadsDir = path.join(__dirname, '../uploads');

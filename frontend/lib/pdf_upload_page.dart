@@ -54,13 +54,11 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
       );
 
       if (result != null && result.files.isNotEmpty) {
-        final path = result.files.single.path;
-        final name = result.files.single.name;
-        final size = result.files.single.size;
+        final pickedFile = result.files.single;
+        final name = pickedFile.name;
+        final size = pickedFile.size;
 
-        if (path == null) return;
-
-        // Validation: Must be .pdf
+        // Validation: Must have .pdf extension
         if (!name.toLowerCase().endsWith('.pdf')) {
           setState(() {
             _errorMessage = 'Invalid file format. Only PDF files are supported.';
@@ -68,16 +66,52 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
           return;
         }
 
-        // Validation: Max 50MB
-        if (size > 50 * 1024 * 1024) {
+        // Validation: Consistent 100 MB limit
+        if (size > 100 * 1024 * 1024) {
           setState(() {
-            _errorMessage = 'File too large. Maximum PDF size is 50 MB.';
+            _errorMessage = 'File too large. Maximum PDF size is 100 MB (${(size / (1024 * 1024)).toStringAsFixed(1)} MB selected).';
           });
           return;
         }
 
+        File targetFile;
+        if (pickedFile.path != null && await File(pickedFile.path!).exists()) {
+          targetFile = File(pickedFile.path!);
+        } else if (pickedFile.bytes != null) {
+          // Android Storage Access Framework fallback: cache in system temp
+          final safeName = name.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+          final tempPath = '${Directory.systemTemp.path}/saf_${DateTime.now().millisecondsSinceEpoch}_$safeName';
+          targetFile = File(tempPath);
+          await targetFile.writeAsBytes(pickedFile.bytes!, flush: true);
+        } else {
+          setState(() {
+            _errorMessage = 'Cannot access selected file from storage provider. Please copy the file to Downloads and retry.';
+          });
+          return;
+        }
+
+        if (!await targetFile.exists()) {
+          setState(() {
+            _errorMessage = 'The selected file is not accessible. Please pick it again.';
+          });
+          return;
+        }
+
+        // Verify PDF signature (%PDF-)
+        try {
+          final raf = await targetFile.open(mode: FileMode.read);
+          final headerBytes = await raf.read(5);
+          await raf.close();
+          if (String.fromCharCodes(headerBytes) != '%PDF-') {
+            setState(() {
+              _errorMessage = 'Selected file is not a valid PDF document (missing %PDF- header signature).';
+            });
+            return;
+          }
+        } catch (_) {}
+
         setState(() {
-          _selectedPdfFile = File(path);
+          _selectedPdfFile = targetFile;
           _pdfFileName = name;
           _pdfFileSize = size;
           if (_titleController.text.trim().isEmpty) {
@@ -95,6 +129,17 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
   Future<void> _uploadPdf() async {
     if (_selectedPdfFile == null) {
       setState(() => _errorMessage = 'Please select a PDF document first.');
+      return;
+    }
+
+    if (!await _selectedPdfFile!.exists()) {
+      setState(() => _errorMessage = 'The selected file is no longer accessible. Please select it again.');
+      return;
+    }
+
+    final actualSize = await _selectedPdfFile!.length();
+    if (actualSize > 100 * 1024 * 1024) {
+      setState(() => _errorMessage = 'File exceeds the 100 MB limit (${(actualSize / (1024 * 1024)).toStringAsFixed(1)} MB).');
       return;
     }
 
@@ -148,7 +193,7 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
 
       setState(() => _uploadProgress = 0.5);
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 120));
+      final streamedResponse = await request.send().timeout(const Duration(minutes: 10));
       setState(() => _uploadProgress = 0.85);
 
       final response = await http.Response.fromStream(streamedResponse);
@@ -186,18 +231,32 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
         }
       }
 
-      final errorMsg = jsonDecode(response.body)['message'] ?? 'Upload failed (${response.statusCode})';
+      // Safe error response parsing — handles HTML error pages without FormatException
+      String errorMsg = 'Upload failed (${response.statusCode})';
+      try {
+        final decodedErr = jsonDecode(response.body);
+        if (decodedErr is Map && decodedErr['message'] != null) {
+          errorMsg = decodedErr['message'].toString();
+        }
+      } catch (_) {
+        if (response.statusCode == 413) {
+          errorMsg = 'File size exceeds the 100 MB maximum limit.';
+        } else if (response.statusCode == 502 || response.statusCode == 504) {
+          errorMsg = 'Server gateway timeout. Please retry with a stable connection.';
+        } else {
+          errorMsg = 'Upload failed with server status ${response.statusCode}.';
+        }
+      }
+
       setState(() {
         _isUploading = false;
         _errorMessage = errorMsg;
       });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _errorMessage = 'Upload failed: $e. Please check your network and retry.';
-        });
-      }
+      setState(() {
+        _isUploading = false;
+        _errorMessage = 'Upload failed: $e. Please check your network and retry.';
+      });
     }
   }
 
@@ -227,10 +286,10 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
                 decoration: BoxDecoration(
-                  color: AppColors.brand.withOpacity(0.04),
+                  color: AppColors.brand.withValues(alpha: 0.04),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _selectedPdfFile != null ? AppColors.brand : AppColors.brand.withOpacity(0.3),
+                    color: _selectedPdfFile != null ? AppColors.brand : AppColors.brand.withValues(alpha: 0.3),
                     width: _selectedPdfFile != null ? 2 : 1.5,
                   ),
                 ),
@@ -239,7 +298,7 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.brand.withOpacity(0.1),
+                        color: AppColors.brand.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -262,7 +321,7 @@ class _PdfUploadPageState extends State<PdfUploadPage> {
                     Text(
                       _selectedPdfFile != null
                           ? _formatFileSize(_pdfFileSize)
-                          : 'Supports standard PDF files up to 50 MB',
+                          : 'Supports standard PDF files up to 100 MB',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade600,

@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { PDFDocument } = require('pdf-lib');
 const { PDFParse } = require('pdf-parse');
 const { cleanExtractedText } = require('../utils/textCleaner.util');
+const { extractPageText } = require('../utils/tamilExtractionPipeline.util');
 const Book = require('../models/Book');
 const ReadingProgress = require('../models/ReadingProgress');
 const { storageService } = require('../services/storage.service');
@@ -11,9 +12,27 @@ const { createAndSaveDefaultCover } = require('../utils/coverGenerator');
 const { successResponse, errorResponse } = require('../utils/response.util');
 
 const uploadBook = async (req, res, next) => {
+  const startTime = Date.now();
   try {
     if (!req.file) {
       return errorResponse(res, 400, 'No PDF file uploaded. Please select a valid PDF.');
+    }
+
+    // Check %PDF- file signature (magic bytes) to reject invalid/corrupted files
+    let isPdfSignature = false;
+    try {
+      const fd = await fs.promises.open(req.file.path, 'r');
+      const headerBuf = Buffer.alloc(5);
+      await fd.read(headerBuf, 0, 5, 0);
+      await fd.close();
+      isPdfSignature = headerBuf.toString('ascii') === '%PDF-';
+    } catch (_) { }
+
+    if (!isPdfSignature) {
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        await fs.promises.unlink(req.file.path).catch(() => { });
+      }
+      return errorResponse(res, 400, 'Invalid PDF file. The file does not have a valid %PDF- header signature.');
     }
 
     const originalFileName = req.file.originalname;
@@ -24,27 +43,28 @@ const uploadBook = async (req, res, next) => {
     const fileSize = req.file.size;
     const pdfFileName = req.file.filename;
 
-    // Calculate actual page count using pdf-lib with pdf-parse fallback
+    // Calculate actual page count using single memory buffer
     let pageCount = 1;
+    let fileBuffer = null;
     try {
-      const pdfBytes = await fs.promises.readFile(req.file.path);
-      const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      fileBuffer = await fs.promises.readFile(req.file.path);
+      const pdfDoc = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
       pageCount = pdfDoc.getPageCount() || 1;
     } catch (parseErr) {
       console.warn('[PDF Parse] Unable to count pages with pdf-lib:', parseErr.message);
     }
 
-    if (pageCount <= 1) {
+    if (pageCount <= 1 && fileBuffer) {
       try {
-        const testBuffer = await fs.promises.readFile(req.file.path);
-        const testParser = new PDFParse({ data: testBuffer });
+        const testParser = new PDFParse({ data: fileBuffer });
         await testParser.load();
         if (testParser.doc && testParser.doc.numPages > 1) {
           pageCount = testParser.doc.numPages;
         }
         await testParser.destroy();
-      } catch (_) {}
+      } catch (_) { }
     }
+    fileBuffer = null; // Release buffer reference immediately
 
     // Generate beautiful custom cover
     const coverFileName = `cover_${uuidv4()}.svg`;
@@ -82,11 +102,17 @@ const uploadBook = async (req, res, next) => {
       lastReadAt: new Date()
     });
 
+    const duration = Date.now() - startTime;
+    console.log(`[PDF Upload] Success: file="${originalFileName}", size=${(fileSize / (1024 * 1024)).toFixed(2)}MB, pages=${pageCount}, duration=${duration}ms`);
+
     return successResponse(res, 201, 'Book uploaded and created successfully', {
       book,
       progress
     });
   } catch (error) {
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      await fs.promises.unlink(req.file.path).catch(() => { });
+    }
     next(error);
   }
 };
@@ -240,10 +266,24 @@ function isTamilText(text) {
   const tamilChars = (text.match(/[\u0B80-\u0BFF]/g) || []).length;
   if (tamilChars === 0) return false;
   const totalChars = text.replace(/\s/g, '').length;
-  // If even 5% of non-space chars are Tamil Unicode → it is a Tamil PDF
   return totalChars > 0 && (tamilChars / totalChars) > 0.05;
 }
 
+/**
+ * getBookPageText — 3-Layer Tamil PDF Extraction Pipeline
+ *
+ * Layer 1: Unicode text extraction via pdf-parse
+ * Layer 2: Legacy Tamil encoding detection + conversion (Bamini, CP1252, MacRoman/TSCII, Anjal)
+ * Layer 3: Scanned-page Tamil OCR via Tesseract.js (tam+eng)
+ *
+ * The pipeline automatically selects the most appropriate method per page.
+ * Each page is evaluated independently so mixed PDFs are handled correctly.
+ *
+ * Response is backward compatible with the existing frontend API:
+ *   { page, text, images, isTamil, pageType }
+ * Plus new informational fields (ignored by existing frontend):
+ *   { extractionMethod, extractionConfidence, extractionWarning }
+ */
 const getBookPageText = async (req, res, next) => {
   let parser = null;
   try {
@@ -262,41 +302,37 @@ const getBookPageText = async (req, res, next) => {
     }
 
     const fileBuffer = await fs.promises.readFile(pdfPath);
+
+    // Load pdf-lib for image-count hinting (scanned page detection)
+    let pdfLibPage = null;
+    try {
+      const pdfLibDoc = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
+      const pageIndex = pageNum - 1;
+      if (pageIndex >= 0 && pageIndex < pdfLibDoc.getPageCount()) {
+        pdfLibPage = pdfLibDoc.getPage(pageIndex);
+      }
+    } catch (_) {}
+
+    // Load pdf-parse
     parser = new PDFParse({ data: fileBuffer });
     await parser.load();
 
-    let rawText = '';
-    try {
-      const pageObj = await parser.doc.getPage(pageNum);
-      try {
-        const pageResult = await parser.getPageText(pageObj, {});
-        if (pageResult && typeof pageResult.text === 'string') {
-          rawText = pageResult.text;
-        } else if (pageResult && typeof pageResult === 'string') {
-          rawText = pageResult;
-        }
-      } catch (_) {
-        const tc = await pageObj.getTextContent();
-        rawText = (tc.items || []).map(it => it.str || '').join(' ');
-      }
-      pageObj.cleanup();
-    } catch (pageErr) {
-      console.warn(`[Book Page] Error getting page ${pageNum}:`, pageErr.message);
-    }
+    // ── 3-Layer extraction pipeline ─────────────────────────────────────────
+    const extraction = await extractPageText({
+      pdfParseDoc: parser,
+      pdfBuffer: fileBuffer,
+      pageNum,
+      pdfLibPage,
+      skipOcr: false
+    });
 
-    // Clean and normalize extracted Tamil text (Bamini, legacy fonts, kerning, Unicode)
-    const cleanedText = cleanExtractedText(rawText);
+    const cleanedText = extraction.text;
+    const hasTamilContent = extraction.isTamil || isTamilText(cleanedText);
+    const hasExtractedText = cleanedText.trim().length > 10;
 
-    // Tamil PDF-ல் images return பண்ண வேண்டாம் — text மட்டும் return பண்ணு
-    // KEY FIX: If ANY text was extracted from this page, never return images.
-    // Images are only for completely unreadable pages (scanned/image-only PDFs).
-    // This handles ALL Tamil encodings: Unicode, Bamini, TSCII — regardless of font.
-    const hasTamilContent = isTamilText(rawText) || isTamilText(cleanedText);
-    const hasExtractedText = (cleanedText.trim().length > 10) || (rawText.trim().length > 10);
-
+    // Fallback static page images (for scanned pages where OCR is unavailable)
     let images = [];
     if (!hasExtractedText) {
-      // Zero text extracted → image-only PDF page → try pre-extracted page images
       try {
         const pageImagesDir = path.join(__dirname, '../../uploads/page_images');
         const bookIdStr = book._id.toString();
@@ -315,19 +351,32 @@ const getBookPageText = async (req, res, next) => {
       } catch (_) {}
     }
 
+    // Determine page type
+    let pageType = 'digital_text';
+    if (extraction.method === 'ocr') {
+      pageType = 'scanned_image';
+    } else if (!hasExtractedText) {
+      pageType = 'scanned_image';
+    } else if (images.length > 0) {
+      pageType = 'mixed';
+    }
+
     return successResponse(res, 200, 'Page text extracted successfully', {
       page: pageNum,
       text: cleanedText,
       images,
-      isTamil: hasTamilContent
+      isTamil: hasTamilContent,
+      pageType,
+      // Informational fields (additive — existing frontend ignores unknown fields)
+      extractionMethod: extraction.method,
+      extractionConfidence: extraction.confidence,
+      extractionWarning: extraction.warning || null
     });
   } catch (error) {
     next(error);
   } finally {
     if (parser) {
-      try {
-        await parser.destroy();
-      } catch (_) {}
+      try { await parser.destroy(); } catch (_) {}
       parser = null;
     }
   }
@@ -373,7 +422,7 @@ const getTableOfContents = async (req, res, next) => {
           // Outline exists but complex to parse — return empty TOC
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // If no TOC from outline, build a basic chapter list from page headings
     if (toc.length === 0) {
@@ -412,11 +461,11 @@ const getTableOfContents = async (req, res, next) => {
                 }
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         await parser.destroy();
-      } catch (_) {}
+      } catch (_) { }
     }
 
     return successResponse(res, 200, 'Table of contents fetched', {

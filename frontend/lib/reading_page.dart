@@ -45,7 +45,6 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   ReaderTheme _theme = ReaderTheme.light;
   double _zoomScale = 1.0;
   bool _isReflowMode = true; // Reflow extracted text vs Fixed Layout preview
-
   List<Map<String, dynamic>> _bookmarks = [];
   bool _isBookmarked = false;
   String? _userId;
@@ -260,13 +259,9 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
         final decoded = jsonDecode(res.body);
         if (decoded['success'] == true && decoded['data'] != null) {
           final text = decoded['data']['text']?.toString().trim() ?? '';
-          // IMPORTANT: isTamil flag from backend — if true, completely ignore images
-          final isTamil = decoded['data']['isTamil'] == true;
-
-          // Only load images for NON-Tamil, NON-text pages (pure image-only scanned PDFs)
-          // If ANY text exists OR it's a Tamil PDF → no images at all
+          // Load page images for scanned / image-only PDFs when no text was extracted
           List<String> images = [];
-          if (!isTamil && text.isEmpty) {
+          if (text.isEmpty) {
             final rawImages = decoded['data']['images'];
             if (rawImages is List) {
               images = rawImages
@@ -352,120 +347,124 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
               top: false,
               child: Column(
                 children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.list_rounded,
-                        color: AppColors.brand,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'உள்ளடக்கம் (TOC)',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: _themeTextColor,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.list_rounded,
+                          color: AppColors.brand,
+                          size: 24,
                         ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: Icon(Icons.close_rounded, color: _themeTextColor),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(
+                          'உள்ளடக்கம் (TOC)',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _themeTextColor,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: _themeTextColor,
+                          ),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: _isTocLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.brand,
-                          ),
-                        )
-                      : _toc.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Text(
-                              'இந்த புத்தகத்தில் உள்ளடக்கம் கிடைக்கவில்லை.\n(No table of contents found)',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _themeTextColor.withOpacity(0.6),
-                                fontSize: 14,
-                              ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: _isTocLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.brand,
                             ),
-                          ),
-                        )
-                      : ListView.separated(
-                          controller: scrollCtrl,
-                          itemCount: _toc.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (_, index) {
-                            final chapter = _toc[index];
-                            final chapterTitle =
-                                chapter['title']?.toString() ??
-                                'Chapter ${index + 1}';
-                            final chapterPage =
-                                int.tryParse(
-                                  chapter['page']?.toString() ?? '1',
-                                ) ??
-                                1;
-                            return ListTile(
-                              leading: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: AppColors.brand.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '$chapterPage',
-                                    style: const TextStyle(
-                                      color: AppColors.brand,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                chapterTitle,
+                          )
+                        : _toc.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Text(
+                                'இந்த புத்தகத்தில் உள்ளடக்கம் கிடைக்கவில்லை.\n(No table of contents found)',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: _themeTextColor,
+                                  color: _themeTextColor.withOpacity(0.6),
                                   fontSize: 14,
                                 ),
                               ),
-                              subtitle: Text(
-                                'Page $chapterPage',
-                                style: TextStyle(
-                                  color: _themeTextColor.withOpacity(0.5),
-                                  fontSize: 12,
+                            ),
+                          )
+                        : ListView.separated(
+                            controller: scrollCtrl,
+                            itemCount: _toc.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (_, index) {
+                              final chapter = _toc[index];
+                              final chapterTitle =
+                                  chapter['title']?.toString() ??
+                                  'Chapter ${index + 1}';
+                              final chapterPage =
+                                  int.tryParse(
+                                    chapter['page']?.toString() ?? '1',
+                                  ) ??
+                                  1;
+                              return ListTile(
+                                leading: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.brand.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '$chapterPage',
+                                      style: const TextStyle(
+                                        color: AppColors.brand,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              trailing: Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                size: 14,
-                                color: _themeTextColor.withOpacity(0.4),
-                              ),
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                _goToPage(chapterPage);
-                              },
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
-      );
+                                title: Text(
+                                  chapterTitle,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _themeTextColor,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Page $chapterPage',
+                                  style: TextStyle(
+                                    color: _themeTextColor.withOpacity(0.5),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                trailing: Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  size: 14,
+                                  color: _themeTextColor.withOpacity(0.4),
+                                ),
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  _goToPage(chapterPage);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -538,13 +537,11 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     TextStyle style = TextStyle(
       fontSize: _fontSize,
       color: _themeTextColor,
-      height: 1.7, // Slightly more line height for Tamil readability
-      letterSpacing: hasTamil
-          ? 0.0
-          : 0.2, // No letter spacing for Tamil (breaks syllables)
-      wordSpacing: hasTamil
-          ? 2.0
-          : 0.0, // Word spacing helps Tamil word clarity
+      height: 1.7, // Line height for optimal Tamil and English readability
+      letterSpacing:
+          0.0, // Standard natural font metrics (never artificially stretch syllables)
+      wordSpacing:
+          0.0, // Standard natural word spacing (never inject artificial word gaps)
       fontFamilyFallback: const ['Noto Sans Tamil', 'Mukta Malar', 'Roboto'],
     );
 
@@ -606,6 +603,65 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     return 'Reading Page $page...';
   }
 
+  /// Renders page text broken down by paragraph boundaries.
+  ///
+  /// Justification strategy:
+  /// - Short lines, headings, list items → TextAlign.start (never stretched).
+  /// - Body paragraphs → TextAlign.justify with a trailing U+200B zero-width
+  ///   space. The ZWS tells Flutter's paragraph layout engine this is a partial
+  ///   line, so the last line of each paragraph is NOT stretched to fill width.
+  ///   This gives proper justified body text without excess gaps on final lines.
+  ///
+  /// The backend collapses all multi-spaces in extracted text (step 16 of
+  /// cleanExtractedText), so no artificial spacing exists in the input text.
+  Widget _buildPageParagraphs(String pageContent) {
+    final rawParagraphs = pageContent.split(RegExp(r'\r?\n\r?\n+'));
+    final style = _getAppliedTextStyle();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rawParagraphs.map((p) {
+        final trimmed = p.trim();
+        if (trimmed.isEmpty) return const SizedBox.shrink();
+
+        // Short lines, headings, list items — left-align, never justify
+        final isShortOrHeading =
+            (trimmed.length < 55 && !trimmed.endsWith('.')) ||
+            RegExp(
+              r'^[\u2022\u25E6\u2023\u2219•\-\*]|\d+[\.)]',
+            ).hasMatch(trimmed) ||
+            trimmed.startsWith('Chapter') ||
+            trimmed.startsWith('பாடம்') ||
+            trimmed.startsWith('பிரிவு') ||
+            trimmed.startsWith('இயல்');
+
+        if (isShortOrHeading) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Text(
+              trimmed,
+              style: trimmed.length < 55
+                  ? style.copyWith(fontWeight: FontWeight.w700)
+                  : style,
+              textAlign: TextAlign.start,
+            ),
+          );
+        }
+
+        // Body paragraph: justified. Trailing U+200B (zero-width space) prevents
+        // Flutter from over-stretching the last line of each paragraph.
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Text(
+            '$trimmed​',
+            style: style,
+            textAlign: TextAlign.justify,
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   void _showBookmarksModal() {
     showModalBottomSheet(
       context: context,
@@ -619,114 +675,116 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.bookmark_rounded,
-                    color: AppColors.brand,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Bookmarks (${_bookmarks.length})',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: _themeTextColor,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.bookmark_rounded,
+                      color: AppColors.brand,
+                      size: 24,
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: Icon(Icons.close_rounded, color: _themeTextColor),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const Divider(),
-              if (_bookmarks.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 30),
-                  child: Center(
-                    child: Text(
-                      'No bookmarks added yet.\nTap the bookmark icon on any page to save it.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: _themeTextColor.withOpacity(0.6)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Bookmarks (${_bookmarks.length})',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: _themeTextColor,
+                      ),
                     ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: _bookmarks.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, index) {
-                      final bm = _bookmarks[index];
-                      final pageNum = bm['pageNumber'] ?? 1;
-                      final note = bm['note'] ?? 'Bookmark';
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.brand.withOpacity(0.1),
-                          child: Text(
-                            '$pageNum',
-                            style: const TextStyle(
-                              color: AppColors.brand,
-                              fontWeight: FontWeight.bold,
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, color: _themeTextColor),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                if (_bookmarks.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 30),
+                    child: Center(
+                      child: Text(
+                        'No bookmarks added yet.\nTap the bookmark icon on any page to save it.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _themeTextColor.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _bookmarks.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, index) {
+                        final bm = _bookmarks[index];
+                        final pageNum = bm['pageNumber'] ?? 1;
+                        final note = bm['note'] ?? 'Bookmark';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.brand.withOpacity(0.1),
+                            child: Text(
+                              '$pageNum',
+                              style: const TextStyle(
+                                color: AppColors.brand,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
-                        title: Text(
-                          'Page $pageNum',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: _themeTextColor,
+                          title: Text(
+                            'Page $pageNum',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: _themeTextColor,
+                            ),
                           ),
-                        ),
-                        subtitle: Text(
-                          note,
-                          style: TextStyle(
-                            color: _themeTextColor.withOpacity(0.7),
+                          subtitle: Text(
+                            note,
+                            style: TextStyle(
+                              color: _themeTextColor.withOpacity(0.7),
+                            ),
                           ),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () async {
-                            Navigator.pop(ctx);
-                            final bmId = bm['_id'];
-                            if (bmId != null) {
-                              await http.delete(
-                                Uri.parse(
-                                  '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/bookmarks/$bmId?userId=$_userId',
-                                ),
-                              );
-                              setState(() {
-                                _bookmarks.removeAt(index);
-                                _isBookmarked = _bookmarks.any(
-                                  (b) => b['pageNumber'] == _currentPage,
+                          trailing: IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.redAccent,
+                            ),
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              final bmId = bm['_id'];
+                              if (bmId != null) {
+                                await http.delete(
+                                  Uri.parse(
+                                    '${ApiConfig.apiBaseUrl}/books/${widget.bookId}/bookmarks/$bmId?userId=$_userId',
+                                  ),
                                 );
-                              });
-                            }
+                                setState(() {
+                                  _bookmarks.removeAt(index);
+                                  _isBookmarked = _bookmarks.any(
+                                    (b) => b['pageNumber'] == _currentPage,
+                                  );
+                                });
+                              }
+                            },
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _goToPage(pageNum);
                           },
-                        ),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _goToPage(pageNum);
-                        },
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
-    },
+        );
+      },
     );
   }
 
@@ -746,303 +804,314 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
                 child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: _themeTextColor.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.tune_rounded,
-                          color: AppColors.brand,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Reading Settings',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: _themeTextColor,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: _themeTextColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // 1. FONT STYLE
-                    Text(
-                      'Font Style',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _themeTextColor.withOpacity(0.7),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children:
-                          [
-                            'Default',
-                            'Roboto',
-                            'Lora',
-                            'Playfair Display',
-                            'Mukta Malar',
-                            'Hind Madurai',
-                            'Pavanam',
-                            'Arima',
-                            'Kavivanar',
-                            'Catamaran',
-                            'Baloo 2',
-                            'Tiro Tamil',
-                            'Inter',
-                            'Merienda',
-                            'Lobster',
-                            'Serif',
-                            'Monospace',
-                          ].map((font) {
-                            final selected = _fontStyle == font;
-                            return ChoiceChip(
-                              label: Text(font),
-                              selected: selected,
-                              selectedColor: AppColors.brand,
-                              labelStyle: TextStyle(
-                                color: selected
-                                    ? Colors.white
-                                    : _themeTextColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                              onSelected: (val) {
-                                if (val) {
-                                  setState(() => _fontStyle = font);
-                                  setModalState(() => _fontStyle = font);
-                                  _saveReaderSettings();
-                                }
-                              },
-                            );
-                          }).toList(),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // 2. FONT SIZE
-                    Text(
-                      'Font Size',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _themeTextColor.withOpacity(0.7),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.tune_rounded,
+                            color: AppColors.brand,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Reading Settings',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: _themeTextColor,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        IconButton.filledTonal(
-                          icon: const Icon(Icons.text_decrease_rounded),
-                          onPressed: () {
-                            if (_fontSize > 14) {
-                              setState(() => _fontSize -= 2);
-                              setModalState(() {});
-                              _saveReaderSettings();
-                            }
-                          },
+                      const SizedBox(height: 20),
+
+                      // 1. FONT STYLE
+                      Text(
+                        'Font Style',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _themeTextColor.withOpacity(0.7),
                         ),
-                        Expanded(
-                          child: Center(
-                            child: Text(
-                              _fontSize <= 14
-                                  ? 'Small'
-                                  : _fontSize <= 18
-                                  ? 'Medium'
-                                  : _fontSize <= 22
-                                  ? 'Large'
-                                  : 'Extra Large',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: _themeTextColor,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children:
+                            [
+                              'Default',
+                              'Roboto',
+                              'Lora',
+                              'Playfair Display',
+                              'Mukta Malar',
+                              'Hind Madurai',
+                              'Pavanam',
+                              'Arima',
+                              'Kavivanar',
+                              'Catamaran',
+                              'Baloo 2',
+                              'Tiro Tamil',
+                              'Inter',
+                              'Merienda',
+                              'Lobster',
+                              'Serif',
+                              'Monospace',
+                            ].map((font) {
+                              final selected = _fontStyle == font;
+                              return ChoiceChip(
+                                label: Text(font),
+                                selected: selected,
+                                selectedColor: AppColors.brand,
+                                labelStyle: TextStyle(
+                                  color: selected
+                                      ? Colors.white
+                                      : _themeTextColor,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                                onSelected: (val) {
+                                  if (val) {
+                                    setState(() => _fontStyle = font);
+                                    setModalState(() => _fontStyle = font);
+                                    _saveReaderSettings();
+                                  }
+                                },
+                              );
+                            }).toList(),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // 2. FONT SIZE
+                      Text(
+                        'Font Size',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _themeTextColor.withOpacity(0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          IconButton.filledTonal(
+                            icon: const Icon(Icons.text_decrease_rounded),
+                            onPressed: () {
+                              if (_fontSize > 14) {
+                                setState(() => _fontSize -= 2);
+                                setModalState(() {});
+                                _saveReaderSettings();
+                              }
+                            },
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: Text(
+                                _fontSize <= 14
+                                    ? 'Small'
+                                    : _fontSize <= 18
+                                    ? 'Medium'
+                                    : _fontSize <= 22
+                                    ? 'Large'
+                                    : 'Extra Large',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: _themeTextColor,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        IconButton.filledTonal(
-                          icon: const Icon(Icons.text_increase_rounded),
-                          onPressed: () {
-                            if (_fontSize < 28) {
-                              setState(() => _fontSize += 2);
-                              setModalState(() {});
-                              _saveReaderSettings();
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-
-                    // 3. FONT COLOR
-                    Text(
-                      'Font Color',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _themeTextColor.withOpacity(0.7),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children:
-                          [
-                            {
-                              'label': 'Default',
-                              'color': const Color(0xFF1A1A1A),
+                          IconButton.filledTonal(
+                            icon: const Icon(Icons.text_increase_rounded),
+                            onPressed: () {
+                              if (_fontSize < 28) {
+                                setState(() => _fontSize += 2);
+                                setModalState(() {});
+                                _saveReaderSettings();
+                              }
                             },
-                            {
-                              'label': 'Black',
-                              'color': const Color(0xFF000000),
-                            },
-                            {'label': 'Red', 'color': const Color(0xFFF44336)},
-                            {'label': 'Blue', 'color': const Color(0xFF2196F3)},
-                            {
-                              'label': 'Green',
-                              'color': const Color(0xFF4CAF50),
-                            },
-                            {
-                              'label': 'Purple',
-                              'color': const Color(0xFF9C27B0),
-                            },
-                            {
-                              'label': 'Orange',
-                              'color': const Color(0xFFFF9800),
-                            },
-                            {'label': 'Teal', 'color': const Color(0xFF009668)},
-                            {
-                              'label': 'Brown',
-                              'color': const Color(0xFF795548),
-                            },
-                            {
-                              'label': 'Brand Blue',
-                              'color': const Color(0xFF0729E8),
-                            },
-                            {'label': 'White', 'color': Colors.white},
-                            {
-                              'label': 'Sepia',
-                              'color': const Color(0xFF6B4226),
-                            },
-                          ].map((item) {
-                            final c = item['color'] as Color;
-                            final label = item['label'] as String;
-                            final selected = _fontColor == c;
-                            return ChoiceChip(
-                              label: Text(label),
-                              selected: selected,
-                              selectedColor: AppColors.brand,
-                              labelStyle: TextStyle(
-                                color: selected
-                                    ? Colors.white
-                                    : _themeTextColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                              onSelected: (val) {
-                                if (val) {
-                                  setState(() => _fontColor = c);
-                                  setModalState(() => _fontColor = c);
-                                  _saveReaderSettings();
-                                }
-                              },
-                            );
-                          }).toList(),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // 4. READING THEMES
-                    Text(
-                      'Reading Theme',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _themeTextColor.withOpacity(0.7),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildThemeButton(
-                          'Light',
-                          ReaderTheme.light,
-                          const Color(0xFFFFFFFF),
-                          Colors.black87,
-                          setModalState,
-                        ),
-                        _buildThemeButton(
-                          'Sepia',
-                          ReaderTheme.sepia,
-                          const Color(0xFFFBF0D9),
-                          const Color(0xFF423326),
-                          setModalState,
-                        ),
-                        _buildThemeButton(
-                          'Dark',
-                          ReaderTheme.dark,
-                          const Color(0xFF1E293B),
-                          Colors.white,
-                          setModalState,
-                        ),
-                        _buildThemeButton(
-                          'Black',
-                          ReaderTheme.black,
-                          Colors.black,
-                          Colors.white,
-                          setModalState,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // 5. ZOOM & VIEW MODE
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Reflow Text Mode',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: _themeTextColor,
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+
+                      // 3. FONT COLOR
+                      Text(
+                        'Font Color',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _themeTextColor.withOpacity(0.7),
                         ),
-                        Switch(
-                          value: _isReflowMode,
-                          activeColor: AppColors.brand,
-                          onChanged: (val) {
-                            setState(() => _isReflowMode = val);
-                            setModalState(() {});
-                          },
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children:
+                            [
+                              {
+                                'label': 'Default',
+                                'color': const Color(0xFF1A1A1A),
+                              },
+                              {
+                                'label': 'Black',
+                                'color': const Color(0xFF000000),
+                              },
+                              {
+                                'label': 'Red',
+                                'color': const Color(0xFFF44336),
+                              },
+                              {
+                                'label': 'Blue',
+                                'color': const Color(0xFF2196F3),
+                              },
+                              {
+                                'label': 'Green',
+                                'color': const Color(0xFF4CAF50),
+                              },
+                              {
+                                'label': 'Purple',
+                                'color': const Color(0xFF9C27B0),
+                              },
+                              {
+                                'label': 'Orange',
+                                'color': const Color(0xFFFF9800),
+                              },
+                              {
+                                'label': 'Teal',
+                                'color': const Color(0xFF009668),
+                              },
+                              {
+                                'label': 'Brown',
+                                'color': const Color(0xFF795548),
+                              },
+                              {
+                                'label': 'Brand Blue',
+                                'color': const Color(0xFF0729E8),
+                              },
+                              {'label': 'White', 'color': Colors.white},
+                              {
+                                'label': 'Sepia',
+                                'color': const Color(0xFF6B4226),
+                              },
+                            ].map((item) {
+                              final c = item['color'] as Color;
+                              final label = item['label'] as String;
+                              final selected = _fontColor == c;
+                              return ChoiceChip(
+                                label: Text(label),
+                                selected: selected,
+                                selectedColor: AppColors.brand,
+                                labelStyle: TextStyle(
+                                  color: selected
+                                      ? Colors.white
+                                      : _themeTextColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                                onSelected: (val) {
+                                  if (val) {
+                                    setState(() => _fontColor = c);
+                                    setModalState(() => _fontColor = c);
+                                    _saveReaderSettings();
+                                  }
+                                },
+                              );
+                            }).toList(),
+                      ),
+                      const SizedBox(height: 18),
+
+
+
+                      // 4. READING THEMES
+                      Text(
+                        'Reading Theme',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _themeTextColor.withOpacity(0.7),
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildThemeButton(
+                            'Light',
+                            ReaderTheme.light,
+                            const Color(0xFFFFFFFF),
+                            Colors.black87,
+                            setModalState,
+                          ),
+                          _buildThemeButton(
+                            'Sepia',
+                            ReaderTheme.sepia,
+                            const Color(0xFFFBF0D9),
+                            const Color(0xFF423326),
+                            setModalState,
+                          ),
+                          _buildThemeButton(
+                            'Dark',
+                            ReaderTheme.dark,
+                            const Color(0xFF1E293B),
+                            Colors.white,
+                            setModalState,
+                          ),
+                          _buildThemeButton(
+                            'Black',
+                            ReaderTheme.black,
+                            Colors.black,
+                            Colors.white,
+                            setModalState,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // 5. ZOOM & VIEW MODE
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Reflow Text Mode',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: _themeTextColor,
+                            ),
+                          ),
+                          Switch(
+                            value: _isReflowMode,
+                            activeColor: AppColors.brand,
+                            onChanged: (val) {
+                              setState(() => _isReflowMode = val);
+                              setModalState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
         );
       },
     );
@@ -1113,14 +1182,17 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
       );
     }
 
-    final bool isDarkTheme = _theme == ReaderTheme.black || _theme == ReaderTheme.dark;
+    final bool isDarkTheme =
+        _theme == ReaderTheme.black || _theme == ReaderTheme.dark;
     final systemOverlay = SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: isDarkTheme ? Brightness.light : Brightness.dark,
       statusBarBrightness: isDarkTheme ? Brightness.dark : Brightness.light,
       systemNavigationBarColor: Colors.transparent,
       systemNavigationBarDividerColor: Colors.transparent,
-      systemNavigationBarIconBrightness: isDarkTheme ? Brightness.light : Brightness.dark,
+      systemNavigationBarIconBrightness: isDarkTheme
+          ? Brightness.light
+          : Brightness.dark,
       systemNavigationBarContrastEnforced: false,
     );
 
@@ -1206,7 +1278,8 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                   if (details.primaryVelocity != null) {
                     if (details.primaryVelocity! < -200) {
                       // Swipe left -> Next Page
-                      if (_currentPage < _totalPages) _goToPage(_currentPage + 1);
+                      if (_currentPage < _totalPages)
+                        _goToPage(_currentPage + 1);
                     } else if (details.primaryVelocity! > 200) {
                       // Swipe right -> Prev Page
                       if (_currentPage > 1) _goToPage(_currentPage - 1);
@@ -1252,14 +1325,17 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         widget.author,
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
-                                          color: _themeTextColor.withOpacity(0.5),
+                                          color: _themeTextColor.withOpacity(
+                                            0.5,
+                                          ),
                                         ),
                                       ),
                                       Container(
@@ -1268,8 +1344,12 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                                           vertical: 4,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: AppColors.brand.withOpacity(0.08),
-                                          borderRadius: BorderRadius.circular(12),
+                                          color: AppColors.brand.withOpacity(
+                                            0.08,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                         ),
                                         child: Text(
                                           'Page $_currentPage',
@@ -1285,11 +1365,75 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                                   const SizedBox(height: 16),
                                   const Divider(),
                                   const SizedBox(height: 16),
-                                  if (_getPageContent(_currentPage).trim().isNotEmpty)
-                                    Text(
+                                  if (_getPageContent(
+                                    _currentPage,
+                                  ).trim().isNotEmpty)
+                                    _buildPageParagraphs(
                                       _getPageContent(_currentPage),
-                                      style: _getAppliedTextStyle(),
-                                      textAlign: TextAlign.justify,
+                                    )
+                                  else if (_extractedPageImages.containsKey(
+                                        _currentPage,
+                                      ) &&
+                                      _extractedPageImages[_currentPage]!
+                                          .isNotEmpty)
+                                    Column(
+                                      children: _extractedPageImages[_currentPage]!
+                                          .map(
+                                            (imgUrl) => Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 8,
+                                                  ),
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                child: Image.network(
+                                                  _resolveImageUrl(imgUrl),
+                                                  fit: BoxFit.contain,
+                                                  errorBuilder:
+                                                      (
+                                                        ctx,
+                                                        err,
+                                                        stack,
+                                                      ) => Center(
+                                                        child: Padding(
+                                                          padding:
+                                                              const EdgeInsets.all(
+                                                                24,
+                                                              ),
+                                                          child: Text(
+                                                            'Scanned page image not found on server.',
+                                                            style: TextStyle(
+                                                              color: _themeTextColor
+                                                                  .withOpacity(
+                                                                    0.6,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    )
+                                  else
+                                    Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 40,
+                                        ),
+                                        child: Text(
+                                          'No readable text found on this page.',
+                                          style: TextStyle(
+                                            color: _themeTextColor.withOpacity(
+                                              0.6,
+                                            ),
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                 ],
                               ),
@@ -1358,39 +1502,73 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                         Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-                              color: _currentPage > 1 ? AppColors.brand : Colors.grey.shade400,
-                              onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+                              icon: const Icon(
+                                Icons.arrow_back_ios_rounded,
+                                size: 20,
+                              ),
+                              color: _currentPage > 1
+                                  ? AppColors.brand
+                                  : Colors.grey.shade400,
+                              onPressed: _currentPage > 1
+                                  ? () => _goToPage(_currentPage - 1)
+                                  : null,
                               padding: const EdgeInsets.all(8),
-                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                              constraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
+                              ),
                             ),
                             Expanded(
                               child: SliderTheme(
                                 data: SliderTheme.of(context).copyWith(
-                                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                                  thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 8,
+                                  ),
+                                  overlayShape: const RoundSliderOverlayShape(
+                                    overlayRadius: 16,
+                                  ),
                                   trackHeight: 4,
                                 ),
                                 child: Slider(
                                   value: _currentPage.toDouble().clamp(
                                     1.0,
-                                    _totalPages > 0 ? _totalPages.toDouble() : 1.0,
+                                    _totalPages > 0
+                                        ? _totalPages.toDouble()
+                                        : 1.0,
                                   ),
                                   min: 1,
-                                  max: _totalPages > 0 ? _totalPages.toDouble() : 1.0,
-                                  divisions: _totalPages > 1 ? _totalPages - 1 : 1,
+                                  max: _totalPages > 0
+                                      ? _totalPages.toDouble()
+                                      : 1.0,
+                                  divisions: _totalPages > 1
+                                      ? _totalPages - 1
+                                      : 1,
                                   activeColor: AppColors.brand,
-                                  inactiveColor: AppColors.brand.withOpacity(0.15),
-                                  onChanged: _totalPages > 1 ? (val) => _goToPage(val.round()) : null,
+                                  inactiveColor: AppColors.brand.withOpacity(
+                                    0.15,
+                                  ),
+                                  onChanged: _totalPages > 1
+                                      ? (val) => _goToPage(val.round())
+                                      : null,
                                 ),
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20),
-                              color: _currentPage < _totalPages ? AppColors.brand : Colors.grey.shade400,
-                              onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
+                              icon: const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 20,
+                              ),
+                              color: _currentPage < _totalPages
+                                  ? AppColors.brand
+                                  : Colors.grey.shade400,
+                              onPressed: _currentPage < _totalPages
+                                  ? () => _goToPage(_currentPage + 1)
+                                  : null,
                               padding: const EdgeInsets.all(8),
-                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                              constraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
+                              ),
                             ),
                           ],
                         ),
